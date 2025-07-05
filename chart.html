@@ -2,126 +2,190 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Kariapper Family Tree – up to 3 generations---GG</title>
+  <title>Kariapper Family Tree – up to 3 generations- COLL</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { margin:0; font-family:Arial,sans-serif }
-    h1  { text-align:center; margin:12px 0 }
-    #tree_div { width:100%; height:calc(100vh - 50px); overflow:auto }
-    .node-rect { fill:#f9f9f9; stroke:#666; stroke-width:1px; rx:4 }
-    .node-text { font-size:12px; pointer-events:none;
-                  text-anchor:middle; dominant-baseline:central }
-    .link      { fill:none; stroke:#999; stroke-width:1px }
+    body { margin:0; font-family:"Segoe UI",sans-serif; }
+    h1  { text-align:center; margin:12px 0; }
+    #tree_div { width:100%; height:calc(100vh - 50px); overflow:auto; }
+    svg { font: 12px "Segoe UI", sans-serif; }
+    .link { fill:none; stroke:#888; stroke-width:1.5px; }
+    .node-rect {
+      rx:4; ry:4;
+      filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
+    }
+    .gen1 { fill:#eceff4; stroke:#4c566a; }
+    .gen2 { fill:#e5e9f0; stroke:#3b4252; }
+    .gen3 { fill:#d8dee9; stroke:#2e3440; }
+    .node-text { pointer-events:none; text-anchor:middle; dominant-baseline:central; }
+    .node { cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations---GG</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - COLL</h1>
   <div id="tree_div">Loading…</div>
-
   <script>
   (async function(){
-    // 1) Fetch your Master tab (gid=0) as JSONP
+    // ——— 1) Fetch the Master sheet as JSON ———
     const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-    const sheetGid = '0';
-    const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
-              + `?gid=${sheetGid}&headers=1&tqx=out:json`;
-
-    const raw  = await fetch(url).then(r=>r.text());
-    const json = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
+    const sheetGid = '0'; 
+    const raw = await fetch(
+      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
+      + `?gid=${sheetGid}&headers=1&tqx=out:json`
+    ).then(r=>r.text());
+    const json    = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
     const headers = json.table.cols.map(c=>c.label);
     const rows    = json.table.rows;
-
     console.log('Headers:', headers);
     console.log('Total rows:', rows.length);
 
-    // 2) Find the columns we need:
-    const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));        // calculated dID
-    const nameIdx   = headers.findIndex(h => h.trim()==='Full Name');   // Full Name
-    // ← updated to find “gen level” in AD
-    const genIdx    = headers.findIndex(h => /gen\s*level/i.test(h));   
-    const spouseIdx = headers.findIndex(h => /spouse/i.test(h));        // any “spouse” column
-
-    if (idIdx<0 || nameIdx<0 || genIdx<0 || spouseIdx<0) {
+    // ——— 2) Identify our columns ———
+    const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));      // ends with (dID)
+    const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
+    const genIdx    = headers.findIndex(h=>/gen\s*level/i.test(h)); // “gen level”
+    const spouseIdx = headers.findIndex(h=>/spouse/i.test(h));      // any “spouse” header
+    if ([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)) {
       document.getElementById('tree_div').innerText =
         '❌ Missing one of: dID, Full Name, Gen Level or Spouse(s) columns.';
       return;
     }
-    console.log('Indexes → dID:',idIdx,'Name:',nameIdx,'GenLevel:',genIdx,'Spouse(s):',spouseIdx);
+    console.log('Cols idx → dID:',idIdx,'Name:',nameIdx,'Gen:',genIdx,'Spouse:',spouseIdx);
 
-    // 3) Build a flat array of nodes (only gens 1–3)
-    const flat = rows.map(r => {
-      const id      = r.c[idIdx]?.v || '';
-      const name    = r.c[nameIdx]?.v || '';
-      const gen     = Number(r.c[genIdx]?.v);
-      const parent  = id.includes('.') ? id.replace(/\.[^.]+$/, '') : '';
-      const spouse  = r.c[spouseIdx]?.v || '';
-      return { id, name, gen, parent, spouse };
-    }).filter(d => d.id && d.name && d.gen >=1 && d.gen <=3);
+    // ——— 3) Build flat data (gens 1–3) ———
+    const flat = rows.map(r=>{
+      const id     = r.c[idIdx]?.v||'';
+      const name   = r.c[nameIdx]?.v||'';
+      const gen    = +r.c[genIdx]?.v;
+      const parent = id.includes('.')? id.replace(/\.[^.]+$/,'') : '';
+      const spouse = r.c[spouseIdx]?.v||'';
+      return {id,name,gen,parent,spouse,children:[]};
+    }).filter(d=>d.id && d.name && d.gen>=1 && d.gen<=3);
+    console.log('Flat data:',flat);
 
-    console.log('Flat data:', flat);
-
-    // 4) Nest by id
+    // ——— 4) Nest by id ———
     const byId = {};
-    flat.forEach(d => byId[d.id] = {...d, children: []});
-    flat.forEach(d => {
-      if (d.parent && byId[d.parent]) byId[d.parent].children.push(byId[d.id]);
+    flat.forEach(d=> byId[d.id]=d );
+    flat.forEach(d=>{
+      if(d.parent && byId[d.parent]){
+        byId[d.parent].children.push(d);
+      }
     });
-    const root = byId['ALK'];
-    if (!root) {
+    const rootData = byId['ALK'];
+    if(!rootData){
       document.getElementById('tree_div').innerText =
-        '❌ Could not find root “ALK” – check your dID values.';
+        '❌ Root “ALK” not found – check your dID values.';
       return;
     }
 
-    // 5) Create a D3 tree layout
-    const hierarchyRoot = d3.hierarchy(root, d=>d.children);
-    d3.tree().nodeSize([40, 180])(hierarchyRoot);
+    // ——— 5) Build D3 hierarchy & tree ———
+    const root = d3.hierarchy(rootData, d=>d.children);
+    const treeLayout = d3.tree().nodeSize([40,180]);
+    treeLayout(root);
 
-    // 6) Compute SVG extents
-    const all = hierarchyRoot.descendants();
-    const xs  = all.map(d=>d.x), ys = all.map(d=>d.y);
-    const minX = d3.min(xs), maxX = d3.max(xs);
-    const minY = d3.min(ys), maxY = d3.max(ys);
-    const width  = maxY - minY + 200;
-    const height = maxX - minX + 200;
+    // ——— 6) Compute SVG size & init zoom ———
+    const all = root.descendants();
+    const xs  = all.map(d=>d.x), ys=all.map(d=>d.y);
+    const minX=Math.min(...xs), maxX=Math.max(...xs);
+    const minY=Math.min(...ys), maxY=Math.max(...ys);
+    const W = maxY-minY+200, H = maxX-minX+200;
 
-    // 7) Draw
     const svg = d3.select('#tree_div')
-      .html('') // clear “Loading…”
+      .html('')
       .append('svg')
-      .attr('width',  width)
-      .attr('height', height)
-      .append('g')
+      .attr('width', W).attr('height', H);
+
+    const container = svg.append('g')
       .attr('transform', `translate(${-minY+100},${-minX+100})`);
 
-    // links
-    svg.selectAll('path.link')
-      .data(hierarchyRoot.links())
-      .join('path')
-      .attr('class','link')
-      .attr('d', d3.linkHorizontal().x(d=>d.y).y(d=>d.x));
+    svg.call(d3.zoom()
+      .scaleExtent([0.5,2])
+      .on('zoom', ({transform}) => container.attr('transform', transform))
+    );
 
-    // nodes
-    const nodeG = svg.selectAll('g.node')
-      .data(hierarchyRoot.descendants())
-      .join('g')
-      .attr('transform', d=>`translate(${d.y},${d.x})`);
+    // ——— 7) Collapse toggle for Gen-2 ———
+    function toggle(d){
+      if(d.data.gen===2){
+        if(d.children){ d._children=d.children; d.children=null; }
+        else          { d.children=d._children; d._children=null; }
+        update(root);
+      }
+    }
 
-    nodeG.append('rect')
-      .attr('class','node-rect')
-      .attr('x', -60)
-      .attr('y', -12)
-      .attr('width', 120)
-      .attr('height', 24);
+    // ——— 8) Update function draws links + nodes ———
+    function update(source){
+      treeLayout(root);
 
-    nodeG.append('text')
-      .attr('class','node-text')
-      .text(d => d.data.name);
+      // LINKS
+      const link = container.selectAll('path.link')
+        .data(root.links(), d=>d.target.data.id);
 
-    nodeG.append('title')
-      .text(d => d.data.spouse ? `Spouse(s): ${d.data.spouse}` : d.data.name);
+      link.join(
+        enter => enter.append('path')
+                       .attr('class','link')
+                       .attr('d', d3.linkHorizontal()
+                         .x(d=>d.y).y(d=>d.x)
+                         .curve(d3.curveCatmullRom)
+                       ),
+        update => update.attr('d', d3.linkHorizontal()
+                                   .x(d=>d.y).y(d=>d.x)
+                                   .curve(d3.curveCatmullRom)),
+        exit => exit.remove()
+      );
 
+      // NODES
+      const node = container.selectAll('g.node')
+        .data(root.descendants(), d=>d.data.id);
+
+      const nodeEnter = node.join(
+        enter => {
+          const g = enter.append('g')
+            .attr('class','node')
+            .attr('transform', d=>`translate(${source.y},${source.x})`)
+            .on('click', toggle);
+
+          g.append('rect')
+            .attr('class', d=>`node-rect gen${d.data.gen}`);
+
+          g.append('text')
+            .attr('class','node-text');
+
+          g.append('title');
+
+          return g;
+        },
+        update => update,
+        exit => exit.remove()
+      );
+
+      // ENTER + UPDATE: position, size, text
+      nodeEnter
+        .attr('transform', d=>`translate(${d.y},${d.x})`)
+        .each(function(d){
+          const gnode = d3.select(this);
+          const name  = d.data.name;
+          const width = Math.max(80, name.length * 7 + 20);
+
+          gnode.select('rect')
+            .attr('width', width)
+            .attr('height', 24)
+            .attr('x', -width/2)
+            .attr('y', -12);
+
+          gnode.select('text')
+            .attr('x', 0)
+            .attr('y', 0)
+            .text(name);
+
+          gnode.select('title')
+            .text(d.data.spouse
+                ? `Spouse(s): ${d.data.spouse}`
+                : name);
+        });
+    }
+
+    // ——— 9) Initial draw ———
+    update(root);
   })();
   </script>
 </body>
