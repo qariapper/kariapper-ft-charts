@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Kariapper Family Tree – up to 3 generations--- ver8</title>
+  <title>Kariapper Family Tree – up to 3 generations--- ver9</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   
 
 
-  <script src="https://unpkg.com/tabletop@1.5.4/tabletop.min.js"></script>
-  <script src="https://www.gstatic.com/charts/loader.js"></script>
+<!-- in your <head>, replace whatever tabletop.js line you have now with this: -->
+<script src="https://cdn.jsdelivr.net/npm/tabletop@1.5.2/dist/tabletop.min.js"></script>
+<script src="https://www.gstatic.com/charts/loader.js"></script>
 
 
   
@@ -54,7 +55,7 @@
     // 3) Build chart from that one sheet
     function buildChart(data, tabletop) {
       // get rows from the MasterSheet tab
-      const rows = tabletop.sheets('MasterSheet').all();
+      const rows = tabletop.sheets('Master').all();
 
       const dataTable = new google.visualization.DataTable();
       dataTable.addColumn('string','Node');
