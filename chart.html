@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Kariapper Family Tree – up to 3 generations</title>
+  <title>Kariapper Family Tree – up to 3 generations---GG</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -16,17 +16,16 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations-----?</h1>
+  <h1>Kariapper Family Tree – up to 3 generations---GG</h1>
   <div id="tree_div">Loading…</div>
 
   <script>
   (async function(){
-    // 1) Fetch the entire Master sheet as JSONP (gid=0)
+    // 1) Fetch your Master tab (gid=0) as JSONP
     const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
     const sheetGid = '0';
-    const url = 
-      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
-    + `?gid=${sheetGid}&headers=1&tqx=out:json`;
+    const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
+              + `?gid=${sheetGid}&headers=1&tqx=out:json`;
 
     const raw  = await fetch(url).then(r=>r.text());
     const json = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
@@ -37,18 +36,18 @@
     console.log('Total rows:', rows.length);
 
     // 2) Find the columns we need:
-    const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));         // calculated dID
-    const nameIdx   = headers.findIndex(h => h.trim()==='Full Name');    // Full Name
-    const genIdx    = headers.findIndex(h => /Generation/i.test(h));     // Generation
-    // <== UPDATED HERE: pick ANY header containing “spouse” (case-insensitive)
-    const spouseIdx = headers.findIndex(h => /spouse/i.test(h));          
+    const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));        // calculated dID
+    const nameIdx   = headers.findIndex(h => h.trim()==='Full Name');   // Full Name
+    // ← updated to find “gen level” in AD
+    const genIdx    = headers.findIndex(h => /gen\s*level/i.test(h));   
+    const spouseIdx = headers.findIndex(h => /spouse/i.test(h));        // any “spouse” column
 
     if (idIdx<0 || nameIdx<0 || genIdx<0 || spouseIdx<0) {
       document.getElementById('tree_div').innerText =
-        '❌ Missing one of: dID, Full Name, Generation or Spouse(s) columns.';
+        '❌ Missing one of: dID, Full Name, Gen Level or Spouse(s) columns.';
       return;
     }
-    console.log('Indexes → dID:',idIdx,'Name:',nameIdx,'Gen:',genIdx,'Spouse(s):',spouseIdx);
+    console.log('Indexes → dID:',idIdx,'Name:',nameIdx,'GenLevel:',genIdx,'Spouse(s):',spouseIdx);
 
     // 3) Build a flat array of nodes (only gens 1–3)
     const flat = rows.map(r => {
@@ -75,7 +74,7 @@
       return;
     }
 
-    // 5) Create a D3 tree layout (vertical stacking of Gen 3)
+    // 5) Create a D3 tree layout
     const hierarchyRoot = d3.hierarchy(root, d=>d.children);
     d3.tree().nodeSize([40, 180])(hierarchyRoot);
 
@@ -109,7 +108,6 @@
       .join('g')
       .attr('transform', d=>`translate(${d.y},${d.x})`);
 
-    // the box
     nodeG.append('rect')
       .attr('class','node-rect')
       .attr('x', -60)
@@ -117,17 +115,13 @@
       .attr('width', 120)
       .attr('height', 24);
 
-    // name text
     nodeG.append('text')
       .attr('class','node-text')
       .text(d => d.data.name);
 
-    // spouse tooltip
     nodeG.append('title')
-      .text(d => d.data.spouse
-        ? `Spouse(s): ${d.data.spouse}`
-        : d.data.name
-      );
+      .text(d => d.data.spouse ? `Spouse(s): ${d.data.spouse}` : d.data.name);
+
   })();
   </script>
 </body>
