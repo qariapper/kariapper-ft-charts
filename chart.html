@@ -16,7 +16,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations Z  </h1>
+  <h1>Kariapper Family Tree – up to 3 generations-----?</h1>
   <div id="tree_div">Loading…</div>
 
   <script>
@@ -37,10 +37,11 @@
     console.log('Total rows:', rows.length);
 
     // 2) Find the columns we need:
-    const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));      // your calculated dID
-    const nameIdx   = headers.findIndex(h => h.trim()==='Full Name'); // Full Name
-    const genIdx    = headers.findIndex(h => /Generation/i.test(h));  // Generation
-    const spouseIdx = headers.findIndex(h => /^Spouse\(s\)$/i.test(h));// “Spouse(s)” in Z
+    const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));         // calculated dID
+    const nameIdx   = headers.findIndex(h => h.trim()==='Full Name');    // Full Name
+    const genIdx    = headers.findIndex(h => /Generation/i.test(h));     // Generation
+    // <== UPDATED HERE: pick ANY header containing “spouse” (case-insensitive)
+    const spouseIdx = headers.findIndex(h => /spouse/i.test(h));          
 
     if (idIdx<0 || nameIdx<0 || genIdx<0 || spouseIdx<0) {
       document.getElementById('tree_div').innerText =
