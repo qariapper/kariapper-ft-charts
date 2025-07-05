@@ -2,17 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Kariapper Family Tree – up to 3 generations--- ver9</title>
+  <title>Kariapper Family Tree – up to 3 generations---diff</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  
-
-
-<!-- in your <head>, replace whatever tabletop.js line you have now with this: -->
-<script src="https://cdn.jsdelivr.net/npm/tabletop@1.5.2/dist/tabletop.min.js"></script>
-<script src="https://www.gstatic.com/charts/loader.js"></script>
-
-
-  
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
     html, body { margin:0; padding:0; height:100%; }
     h1 { text-align:center; margin:12px 0; font-family:sans-serif; }
@@ -34,60 +26,70 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations---- ver8</h1>
+  <h1>Kariapper Family Tree – up to 3 generations---diff</h1>
   <div id="tree_div">Loading…</div>
-
   <script>
-    // 1) Load OrgChart
-    google.charts.load('current', { packages:['orgchart'] });
+    google.charts.load('current',{packages:['orgchart']});
     google.charts.setOnLoadCallback(fetchAndDraw);
 
-    // 2) Fetch only the "MasterSheet" tab
-    function fetchAndDraw() {
-      Tabletop.init({
-        key: 'https://docs.google.com/spreadsheets/d/1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8/pubhtml',
-        callback: buildChart,
-        simpleSheet: false,           // turn off the single-sheet shortcut
-        wanted: ['Master']       // <-- name of your tab
-      });
+    function fetchAndDraw(){
+      const sheetID   = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
+      const sheetName = 'Master';            // ← your tab name
+      const qry       = "select D, P, C, N, O where AA <= 3";
+      const url = 
+        `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
+      + `?sheet=${sheetName}`
+      + `&headers=1`
+      + `&tq=${encodeURIComponent(qry)}`
+      + `&tqx=out:json`;                          // ask for JSON
+
+      fetch(url)
+        .then(r=>r.text())
+        .then(txt=>{
+          // strip the JS wrapper around the JSON
+          const json = JSON.parse(
+            txt.slice(txt.indexOf('(')+1, txt.lastIndexOf(')'))
+          );
+          drawChart(json.table.rows);
+        })
+        .catch(err=>{
+          console.error(err);
+          document.getElementById('tree_div').innerText =
+            'Error loading sheet – see console.';
+        });
     }
 
-    // 3) Build chart from that one sheet
-    function buildChart(data, tabletop) {
-      // get rows from the MasterSheet tab
-      const rows = tabletop.sheets('Master').all();
+    function drawChart(rows){
+      const data = new google.visualization.DataTable();
+      data.addColumn('string','Node');
+      data.addColumn('string','Parent');
+      data.addColumn({type:'string', role:'tooltip', p:{html:true}});
 
-      const dataTable = new google.visualization.DataTable();
-      dataTable.addColumn('string','Node');
-      dataTable.addColumn('string','Parent');
-      dataTable.addColumn({ type:'string', role:'tooltip', p:{ html:true } });
+      // each row.c is an array of cells [D, P, C, N, O]
+      rows.forEach(r=>{
+        const id     = r.c[0]?.v || '';
+        const parent = r.c[1]?.v || '';
+        const name   = r.c[2]?.v || '';
+        const spF    = r.c[3]?.v || '';
+        const spM    = r.c[4]?.v || '';
+        const spouses= [spF,spM].filter(s=>s).join(', ');
 
-      rows.forEach(r => {
-        const gen = Number(r.Generation);
-        if (gen > 3) return;
+        const nodeHtml = `<div class="org-node">${name}</div>`;
+        const tipHtml  = `<div style="padding:6px;">
+                            <strong>${name}</strong>
+                            ${spouses?`<br/><em>Spouse(s):</em> ${spouses}`:''}
+                          </div>`;
 
-        const id      = (r.dID      || '').trim();
-        const parent  = (r.Father_dID|| '').trim();
-        const name    = r.FullName;
-        const spouses = [r.SpouseF, r.SpouseM].filter(s=>s).join(', ');
-
-        const nodeF = `<div class="org-node">${name}</div>`;
-        const tip   = `<div style="padding:6px;">
-                         <strong>${name}</strong>
-                         ${spouses?`<br/><em>Spouse(s):</em> ${spouses}`:''}
-                       </div>`;
-
-        dataTable.addRow([{ v:id, f:nodeF }, parent, tip]);
+        data.addRow([{v:id, f:nodeHtml}, parent, tipHtml]);
       });
 
-      // 4) Draw OrgChart – default top-down layout
       const chart = new google.visualization.OrgChart(
         document.getElementById('tree_div')
       );
-      chart.draw(dataTable, {
-        allowHtml:    true,
-        allowCollapse:true,
-        compactRows:  true
+      chart.draw(data,{
+        allowHtml:     true,
+        allowCollapse: true,
+        compactRows:   true
       });
     }
   </script>
