@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Kariapper FT – 3-Gen Vertical Tree</title>
+  <title>Kariapper Family Tree – up to 3 generations</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -10,104 +10,123 @@
     h1  { text-align:center; margin:12px 0 }
     #tree_div { width:100%; height:calc(100vh - 50px); overflow:auto }
     .node-rect { fill:#f9f9f9; stroke:#666; stroke-width:1px; rx:4 }
-    .node-text { font-size:12px; pointer-events:none; text-anchor:middle; dominant-baseline:central }
+    .node-text { font-size:12px; pointer-events:none;
+                  text-anchor:middle; dominant-baseline:central }
     .link      { fill:none; stroke:#999; stroke-width:1px }
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations ---- PULL</h1>
+  <h1>Kariapper Family Tree – up to 3 generations Z  </h1>
   <div id="tree_div">Loading…</div>
 
   <script>
   (async function(){
-    // 1) sheet + column config
-    const sheetID   = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-    const sheetName = 'Master';
-    const idCol     = 'A',   // dID
-          parentCol = 'B',   // Father_dID
-          nameCol   = 'C',   // FullName
-          spouse1   = 'D',   // SpouseF
-          spouse2   = 'E',   // SpouseM
-          genCol    = 'F';   // Generation
+    // 1) Fetch the entire Master sheet as JSONP (gid=0)
+    const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
+    const sheetGid = '0';
+    const url = 
+      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
+    + `?gid=${sheetGid}&headers=1&tqx=out:json`;
 
-    // 2) build & fetch JSONP
-    const tq = `select ${idCol},${parentCol},${nameCol},${spouse1},${spouse2} where ${genCol} <= 3`;
-    const url= `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
-             + `?sheet=${sheetName}&headers=1`
-             + `&tq=${encodeURIComponent(tq)}`
-             + `&tqx=out:json`;
-    let raw = await fetch(url).then(r=>r.text());
-    let json = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
-    console.log('Cols:', json.table.cols.map(c=>c.label));
-    console.log('Rows:', json.table.rows);
+    const raw  = await fetch(url).then(r=>r.text());
+    const json = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
+    const headers = json.table.cols.map(c=>c.label);
+    const rows    = json.table.rows;
 
-    // 3) map nodes by dID
-    const rows = json.table.rows;
-    const nodesById = {};
-    rows.forEach(r=>{
-      const [dID, parent, name, sF, sM] = r.c.map(c=>c?.v||'');
-      nodesById[dID] = { id:dID, name, spouses:[sF,sM].filter(x=>x).join(', '), children:[] };
+    console.log('Headers:', headers);
+    console.log('Total rows:', rows.length);
+
+    // 2) Find the columns we need:
+    const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));      // your calculated dID
+    const nameIdx   = headers.findIndex(h => h.trim()==='Full Name'); // Full Name
+    const genIdx    = headers.findIndex(h => /Generation/i.test(h));  // Generation
+    const spouseIdx = headers.findIndex(h => /^Spouse\(s\)$/i.test(h));// “Spouse(s)” in Z
+
+    if (idIdx<0 || nameIdx<0 || genIdx<0 || spouseIdx<0) {
+      document.getElementById('tree_div').innerText =
+        '❌ Missing one of: dID, Full Name, Generation or Spouse(s) columns.';
+      return;
+    }
+    console.log('Indexes → dID:',idIdx,'Name:',nameIdx,'Gen:',genIdx,'Spouse(s):',spouseIdx);
+
+    // 3) Build a flat array of nodes (only gens 1–3)
+    const flat = rows.map(r => {
+      const id      = r.c[idIdx]?.v || '';
+      const name    = r.c[nameIdx]?.v || '';
+      const gen     = Number(r.c[genIdx]?.v);
+      const parent  = id.includes('.') ? id.replace(/\.[^.]+$/, '') : '';
+      const spouse  = r.c[spouseIdx]?.v || '';
+      return { id, name, gen, parent, spouse };
+    }).filter(d => d.id && d.name && d.gen >=1 && d.gen <=3);
+
+    console.log('Flat data:', flat);
+
+    // 4) Nest by id
+    const byId = {};
+    flat.forEach(d => byId[d.id] = {...d, children: []});
+    flat.forEach(d => {
+      if (d.parent && byId[d.parent]) byId[d.parent].children.push(byId[d.id]);
     });
-    let root = null;
-    rows.forEach(r=>{
-      const [dID, parent] = r.c.map(c=>c?.v||'');
-      if (parent && nodesById[parent]) {
-        nodesById[parent].children.push(nodesById[dID]);
-      } else if (dID === 'ALK') {
-        root = nodesById[dID];
-      }
-    });
-
+    const root = byId['ALK'];
     if (!root) {
-      document.getElementById('tree_div').innerText = 
-        '🚨 Could not find root “ALK” – check your sheet name & Generation filter.';
+      document.getElementById('tree_div').innerText =
+        '❌ Could not find root “ALK” – check your dID values.';
       return;
     }
 
-    // 4) build d3.hierarchy + tree layout
-    const treeData = d3.hierarchy(root, d=>d.children);
-    d3.tree().nodeSize([40, 180])(treeData);
+    // 5) Create a D3 tree layout (vertical stacking of Gen 3)
+    const hierarchyRoot = d3.hierarchy(root, d=>d.children);
+    d3.tree().nodeSize([40, 180])(hierarchyRoot);
 
-    // 5) calc SVG size
-    const all = treeData.descendants();
+    // 6) Compute SVG extents
+    const all = hierarchyRoot.descendants();
     const xs  = all.map(d=>d.x), ys = all.map(d=>d.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const W = maxY - minY + 200, H = maxX - minX + 200;
+    const minX = d3.min(xs), maxX = d3.max(xs);
+    const minY = d3.min(ys), maxY = d3.max(ys);
+    const width  = maxY - minY + 200;
+    const height = maxX - minX + 200;
 
-    // 6) draw
+    // 7) Draw
     const svg = d3.select('#tree_div')
+      .html('') // clear “Loading…”
       .append('svg')
-      .attr('width', W).attr('height', H)
+      .attr('width',  width)
+      .attr('height', height)
       .append('g')
       .attr('transform', `translate(${-minY+100},${-minX+100})`);
 
     // links
     svg.selectAll('path.link')
-      .data(treeData.links())
+      .data(hierarchyRoot.links())
       .join('path')
       .attr('class','link')
       .attr('d', d3.linkHorizontal().x(d=>d.y).y(d=>d.x));
 
     // nodes
-    const ng = svg.selectAll('g.node')
-      .data(treeData.descendants())
+    const nodeG = svg.selectAll('g.node')
+      .data(hierarchyRoot.descendants())
       .join('g')
       .attr('transform', d=>`translate(${d.y},${d.x})`);
 
-    ng.append('rect')
+    // the box
+    nodeG.append('rect')
       .attr('class','node-rect')
-      .attr('x',-60).attr('y',-12)
-      .attr('width',120).attr('height',24);
+      .attr('x', -60)
+      .attr('y', -12)
+      .attr('width', 120)
+      .attr('height', 24);
 
-    ng.append('text')
+    // name text
+    nodeG.append('text')
       .attr('class','node-text')
-      .text(d=>d.data.name);
+      .text(d => d.data.name);
 
-    ng.append('title')
-      .text(d=> d.data.spouses 
-         ? `Spouse(s): ${d.data.spouses}` 
-         : d.data.name );
+    // spouse tooltip
+    nodeG.append('title')
+      .text(d => d.data.spouse
+        ? `Spouse(s): ${d.data.spouse}`
+        : d.data.name
+      );
   })();
   </script>
 </body>
