@@ -1,76 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kariapper Family Tree – up to 3 ver1 generations</title>
-  <!-- Load the Google Charts library -->
-  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <meta charset="utf-8">
+  <title>Kariapper Family Tree (3 Generations)</title>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; }
-    h1 { text-align: center; margin-top: 20px; }
-    #tree_div { width: 100%; height: 600px; overflow: auto; }
+    html, body { margin:0; padding:0; height:100%; }
+    #tree_div { width:100%; height:100%; overflow:auto; }
+    h1 { text-align:center; margin:12px 0; }
   </style>
-</head>
-<body>
-  <h1>Kariapper Family Tree – up to 3 generations</h1>
-  <div id="tree_div">Loading...</div>
-
   <script>
-    // 1) Load OrgChart package
-    google.charts.load('current', { packages: ['orgchart'] });
+    // load OrgChart package
+    google.charts.load('current', {packages:['orgchart']});
     google.charts.setOnLoadCallback(drawChart);
 
     function drawChart() {
-      // 2) Prepare DataTable
-      var data = new google.visualization.DataTable();
-      data.addColumn('string', 'ID');
-      data.addColumn('string', 'Parent');
-      data.addColumn({ type: 'string', role: 'tooltip', p: { html: true } });
+      // NOTE: replace the sheet name if yours is not "MasterSheet"
+      const spreadsheetURL =
+        'https://docs.google.com/spreadsheets/d/' +
+        '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8' +
+        '/gviz/tq?sheet=Master&headers=1';
+      
+      const query = new google.visualization.Query(spreadsheetURL);
 
-      // Build query to fetch only up to 3 generations
-      var queryText = 'select E, Q, C, N, P where AB <= 3';
-      var query = new google.visualization.Query(
-        'https://docs.google.com/spreadsheets/d/1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8/gviz/tq?'
-        + 'sheet=Master&headers=1&tq=' + encodeURIComponent(queryText)
-      );
-
-      query.send(function(response) {
+      // select D (dID), P (Father_dID), C (Full Name) where AA (Generation) ≤ 3
+      query.setQuery("select D,P,C where AA <= 3");
+      query.send(response => {
         if (response.isError()) {
-          document.getElementById('tree_div').innerHTML =
+          document.getElementById('tree_div').innerText =
             'Error loading data: ' + response.getMessage();
           return;
         }
-
-        var raw = response.getDataTable();
-        for (var i = 0; i < raw.getNumberOfRows(); i++) {
-          var id       = raw.getValue(i, 0);
-          var parent   = raw.getValue(i, 1);
-          var fullName = raw.getValue(i, 2);
-          var spouseF  = raw.getValue(i, 3) || '';
-          var spouseM  = raw.getValue(i, 4) || '';
-          var spouses  = [spouseF, spouseM].filter(function(s){ return s; }).join(', ');
-
-          // Build HTML tooltip
-          var tipHtml = '<div style="white-space:nowrap;">'
-            + fullName
-            + (spouses ? '<br><strong>Spouse(s):</strong> ' + spouses : '')
-            + '</div>';
-
-          data.addRow([ id, parent, tipHtml ]);
-        }
-
-        // 3) Draw OrgChart with vertical orientation (root at top)
-        var chart = new google.visualization.OrgChart(
+        const data = response.getDataTable();
+        const chart = new google.visualization.OrgChart(
           document.getElementById('tree_div')
         );
         chart.draw(data, {
-          allowHtml: true,
-          collapsible: true,
-          orientation: 'vertical'
+          allowHtml:     true,
+          allowCollapse: true,
+          orientation:  'vertical'
         });
       });
     }
   </script>
+</head>
+<body>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
+  <div id="tree_div"></div>
 </body>
 </html>
