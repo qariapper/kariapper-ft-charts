@@ -1,43 +1,51 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>Kariapper Family Tree – up to 3 generations – vertical1</title>
-    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-    <script type="text/javascript">
-      google.charts.load('current', {packages:['orgchart']});
-      google.charts.setOnLoadCallback(drawChart);
-      function drawChart() {
-        // Query the Google Sheet, limiting to Gen level ≤ 3
-        var query = new google.visualization.Query(
-          'https://docs.google.com/spreadsheets/d/1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8/gviz/tq'
-          + '?sheet=Master&headers=1'
-          + '&tq=' + encodeURIComponent("SELECT D, R, C WHERE AC <= 3")
-        );
-        query.send(handleQueryResponse);
-      }
-      function handleQueryResponse(response) {
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Kariapper Family Tree (3 Generations)Again</title>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    html, body { margin:0; padding:0; height:100%; }
+    #tree_div { width:100%; height:100%; overflow:auto; }
+    h1 { text-align:center; margin:12px 0; }
+  </style>
+  <script>
+    // load OrgChart package
+    google.charts.load('current', {packages:['orgchart']});
+    google.charts.setOnLoadCallback(drawChart);
+
+    function drawChart() {
+      // NOTE: replace the sheet name if yours is not "MasterSheet"
+      const spreadsheetURL =
+        'https://docs.google.com/spreadsheets/d/' +
+        '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8' +
+        '/gviz/tq?sheet=Master&headers=1';
+      
+      const query = new google.visualization.Query(spreadsheetURL);
+
+      // select D (dID), P (Father_dID), C (Full Name) where AA (Generation) ≤ 3
+      query.setQuery("select D,P,C where AA <= 3");
+      query.send(response => {
         if (response.isError()) {
-          document.getElementById('chart_div').innerText =
-            'Error loading data: ' + response.getMessage() + ' ' + response.getDetailedMessage();
+          document.getElementById('tree_div').innerText =
+            'Error loading data: ' + response.getMessage();
           return;
         }
-        var data = response.getDataTable();
-        var chart = new google.visualization.OrgChart(document.getElementById('chart_div'));
+        const data = response.getDataTable();
+        const chart = new google.visualization.OrgChart(
+          document.getElementById('tree_div')
+        );
         chart.draw(data, {
-          allowHtml: true,
-          orientation: 'vertical'
+          allowHtml:     true,
+          allowCollapse: true,
+          orientation:  'vertical'
         });
-      }
-    </script>
-    <style>
-      body { font-family: sans-serif; }
-      h1 { text-align: center; margin-top: 1em; }
-      #chart_div { width: 100%; height: 90vh; }
-    </style>
-  </head>
-  <body>
-    <h1>Kariapper Family Tree – up to 3 generations----</h1>
-    <div id="chart_div"></div>
-  </body>
+      });
+    }
+  </script>
+</head>
+<body>
+  <h1>Kariapper Family Tree – up to 3 generations Again</h1>
+  <div id="tree_div"></div>
+</body>
 </html>
