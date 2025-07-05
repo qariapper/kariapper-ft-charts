@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Kariapper Family Tree – up to 3 generations ---- ver4</title>
+  <title>Kariapper Family Tree – up to 3 generations--- ver5</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/tabletop@1.5.4/dist/tabletop.min.js"></script>
   <script src="https://www.gstatic.com/charts/loader.js"></script>
@@ -27,53 +27,61 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations---- ver4</h1>
+  <h1>Kariapper Family Tree – up to 3 generations---- ver5</h1>
   <div id="tree_div">Loading…</div>
 
   <script>
-    // 1) Load OrgChart package
+    // 1) Load OrgChart
     google.charts.load('current', { packages:['orgchart'] });
     google.charts.setOnLoadCallback(fetchAndDraw);
 
-    // 2) Fetch your sheet via Tabletop.js
+    // 2) Fetch only the "MasterSheet" tab
     function fetchAndDraw() {
       Tabletop.init({
         key: 'https://docs.google.com/spreadsheets/d/1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8/pubhtml',
-        simpleSheet: true,
-        callback: buildChart
+        callback: buildChart,
+        simpleSheet: false,           // turn off the single-sheet shortcut
+        wanted: ['Master']       // <-- name of your tab
       });
     }
 
-    // 3) Build the DataTable from your header names
-    function buildChart(rows) {
-      const data = new google.visualization.DataTable();
-      data.addColumn('string','Node');
-      data.addColumn('string','Parent');
-      data.addColumn({ type:'string', role:'tooltip', p:{ html:true } });
+    // 3) Build chart from that one sheet
+    function buildChart(data, tabletop) {
+      // get rows from the MasterSheet tab
+      const rows = tabletop.sheets('MasterSheet').all();
+
+      const dataTable = new google.visualization.DataTable();
+      dataTable.addColumn('string','Node');
+      dataTable.addColumn('string','Parent');
+      dataTable.addColumn({ type:'string', role:'tooltip', p:{ html:true } });
 
       rows.forEach(r => {
-        const gen = parseInt(r.Generation, 10);
-        if (gen > 3) return;                  // only up to 3rd generation
-        const id      = r.dID.trim();         // your dot-notation ID
-        const parent  = (r.Father_dID||'').trim();  // must match exactly
+        const gen = Number(r.Generation);
+        if (gen > 3) return;
+
+        const id      = (r.dID      || '').trim();
+        const parent  = (r.Father_dID|| '').trim();
         const name    = r.FullName;
         const spouses = [r.SpouseF, r.SpouseM].filter(s=>s).join(', ');
-        // Node label
+
         const nodeF = `<div class="org-node">${name}</div>`;
-        // Tooltip
         const tip   = `<div style="padding:6px;">
                          <strong>${name}</strong>
                          ${spouses?`<br/><em>Spouse(s):</em> ${spouses}`:''}
                        </div>`;
 
-        data.addRow([{ v:id, f:nodeF }, parent, tip]);
+        dataTable.addRow([{ v:id, f:nodeF }, parent, tip]);
       });
 
-      // 4) Draw OrgChart – default top-down layout will put Gen 3 *under* each Gen 2
+      // 4) Draw OrgChart – default top-down layout
       const chart = new google.visualization.OrgChart(
         document.getElementById('tree_div')
       );
-      chart.draw(data, { allowHtml:true, allowCollapse:true, compactRows:true });
+      chart.draw(dataTable, {
+        allowHtml:    true,
+        allowCollapse:true,
+        compactRows:  true
+      });
     }
   </script>
 </body>
