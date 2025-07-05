@@ -59,39 +59,30 @@
         });
     }
 
-    function drawChart(rows){
-      const data = new google.visualization.DataTable();
-      data.addColumn('string','Node');
-      data.addColumn('string','Parent');
-      data.addColumn({type:'string', role:'tooltip', p:{html:true}});
+<script>
+  // …fetch & parse JSON, build dataTable…
+  function drawChart(rows) {
+    const dataTable = new google.visualization.DataTable();
+    dataTable.addColumn('string','Node');
+    dataTable.addColumn('string','Parent');
+    dataTable.addColumn({type:'string', role:'tooltip', p:{html:true}});
 
-      // each row.c is an array of cells [D, P, C, N, O]
-      rows.forEach(r=>{
-        const id     = r.c[0]?.v || '';
-        const parent = r.c[1]?.v || '';
-        const name   = r.c[2]?.v || '';
-        const spF    = r.c[3]?.v || '';
-        const spM    = r.c[4]?.v || '';
-        const spouses= [spF,spM].filter(s=>s).join(', ');
+    rows.forEach(r => {
+      // your row→cell logic…
+      dataTable.addRow([{v:id, f:nodeHtml}, parent, tipHtml]);
+    });
 
-        const nodeHtml = `<div class="org-node">${name}</div>`;
-        const tipHtml  = `<div style="padding:6px;">
-                            <strong>${name}</strong>
-                            ${spouses?`<br/><em>Spouse(s):</em> ${spouses}`:''}
-                          </div>`;
+    const chart = new google.visualization.OrgChart(
+      document.getElementById('tree_div')
+    );
+    chart.draw(dataTable, {
+      allowHtml:     true,
+      allowCollapse: true,
+      compactRows:   true,
+      orientation:   'vertical'
+    });
+  }
+</script>
 
-        data.addRow([{v:id, f:nodeHtml}, parent, tipHtml]);
-      });
-
-      const chart = new google.visualization.OrgChart(
-        document.getElementById('tree_div')
-      );
-      chart.draw(data,{
-        allowHtml:     true,
-        allowCollapse: true,
-        compactRows:   true
-      });
-    }
-  </script>
 </body>
 </html>
