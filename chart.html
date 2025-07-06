@@ -21,7 +21,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - 31</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - 32</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -83,16 +83,29 @@ function toggle(_,d){
 /* ---------------- UPDATE -----------------------------------------------*/
 function colX(depth){return depth? depth*hSpacing+stub : 0;}   // <<< key line
 
+<<<<<<< HEAD
+function update () {
+  tree(root);
+=======
 function update(){
   tree(root);
+>>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 
+<<<<<<< HEAD
+  const colX = depth => depth ? depth*hSpacing + stub   /* every depth>0 */
+                               : stub;                  /* root column == stub */
+=======
   const xs=root.descendants().map(d=>d.x),
         ys=root.descendants().map(d=>colX(d.depth)),
         M=100;
   svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,
                            Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
   gChart.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
+>>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 
+<<<<<<< HEAD
+  /* viewBox … unchanged */
+=======
   /* trunks */
   gChart.selectAll('path.trunk')
     .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
@@ -105,7 +118,22 @@ function update(){
       const horiz=d.depth? `M${x-stub},${d.x}H${x}` : `M${x},${d.x}H${x+stub}`;
       return (horiz+vert).replace(/\s+/g,'');
     });
+>>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 
+<<<<<<< HEAD
+  /* 1 ── vertical trunks + back-stubs */
+  gChart.selectAll('path.trunk')
+    /* … join unchanged … */
+    .attr('d', d=>{
+      const x = colX(d.depth);            // <-- new rule
+      const ys=d.children.map(c=>c.x);
+      const V = `M${x},${d3.min(ys)}V${d3.max(ys)}`;
+      const H = d.depth
+               ? `M${x-stub},${d.x}H${x}`   // aligns back-stub flush
+               : `M0,${d.x}H${x}`;          // root forward-stub starts at 0
+      return (H+V).replace(/\s+/g,'');
+    });
+=======
   /* branches */
   gChart.selectAll('path.branch')
     .data(root.links(),d=>d.target.data.id)
@@ -116,7 +144,18 @@ function update(){
       const start=colX(d.source.depth)+(d.source.depth?0:stub); // root starts after its forward stub
       return `M${start},${d.target.x}H${colX(d.target.depth)}`;
     });
+>>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 
+<<<<<<< HEAD
+  /* 2 ── horizontal branches */
+  gChart.selectAll('path.branch')
+    /* … join unchanged … */
+    .attr('d',d=>{
+      const start = d.source.depth ? colX(d.source.depth)
+                                   : colX(0);            // root branch starts at 0
+      return `M${start},${d.target.x}H${colX(d.target.depth)}`;
+    });
+=======
   /* nodes */
   gChart.selectAll('g.node')
     .data(root.descendants(),d=>d.data.id)
@@ -134,8 +173,25 @@ function update(){
       g.select('title').text(d.data.spouse?`Spouse(s): ${d.data.spouse}`:txt);
     });
 }
+>>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 
+<<<<<<< HEAD
+  /* 3 ── nodes */
+  gChart.selectAll('g.node')
+    /* … join unchanged … */
+    .each(function(d){
+      /* … unchanged … */
+      const x = d.depth ? colX(d.depth)+indent : 0;     // root sits at 0
+      g.attr('transform',`translate(${x},${d.x})`);
+      /* … rest unchanged … */
+    });
+}
+
+
+  update();                              // first draw
+=======
 update();                                    // initial draw
+>>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 })();
 </script>
 </body>
