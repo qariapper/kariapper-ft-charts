@@ -88,6 +88,14 @@
     const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
     tree(root);
 
+    // ——— NEW: collapse all Gen-2 nodes on load ———
+    root.descendants().forEach(d => {
+      if (d.data.gen === 2 && d.children) {
+        d._children = d.children;
+        d.children  = null;
+      }
+    });
+
     // 7) Compute full SVG extents
     const all = root.descendants();
     const xs  = all.map(d=>d.x), ys = all.map(d=>d.y);
