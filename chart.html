@@ -22,73 +22,93 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 20</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 21</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
 (async function () {
-  /* 1 — load */
+  /* 1 — load ------------------------------------------------------------- */
   const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-  const raw=await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`)
-               .then(r=>r.text());
+  const raw = await fetch(
+      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
+    ).then(r=>r.text());
   const json=JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
-  const headers=json.table.cols.map(c=>c.label),rows=json.table.rows;
+  const headers=json.table.cols.map(c=>c.label), rows=json.table.rows;
 
   /* 2 — columns */
-  const idIdx=headers.findIndex(h=>/\(dID\)$/.test(h));
-  const nameIdx=headers.findIndex(h=>h.trim()==='Full Name');
-  const genIdx=headers.findIndex(h=>/^generation$/i.test(h));
-  const spouseIdx=headers.findIndex(h=>/spouse/i.test(h));
-  if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){document.getElementById('tree_div').innerText='❌ missing columns';return;}
+  const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
+  const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
+  const genIdx    = headers.findIndex(h=>/^generation$/i.test(h));
+  const spouseIdx = headers.findIndex(h=>/spouse/i.test(h));
+  if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
+    document.getElementById('tree_div').innerText='❌ missing columns'; return;
+  }
 
-  /* 3 — flat */
-  const flat=rows.map(r=>{
+  /* 3 — flat rows */
+  const flat = rows.map(r=>{
     const id=r.c[idIdx]?.v||'';
-    return{id,
-      name:r.c[nameIdx]?.v||'',
-      gen:+r.c[genIdx]?.v,
-      parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',
-      spouse:r.c[spouseIdx]?.v||'',
-      children:[]};
-  }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
+    return{
+      id,
+      name  : r.c[nameIdx]?.v||'',
+      gen   : +r.c[genIdx]?.v,
+      parent: id.includes('.') ? id.replace(/\.[^.]+$/,'') : '',
+      spouse: r.c[spouseIdx]?.v||'',
+      children:[]
+    };
+  }).filter(d=>d.id && d.name && Number.isFinite(d.gen) && d.gen<=3);
 
-  /* 4 — nest */
+  /* 4 — nest  */
   const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
-  flat.forEach(d=>{if(d.parent&&byId[d.parent])byId[d.parent].children.push(d);});
-  const rootData=byId['ALK'];if(!rootData){document.getElementById('tree_div').innerText='❌ root ALK not found';return;}
+  flat.forEach(d=>{ if(d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
+  const rootData=byId['ALK'];
+  if(!rootData){ document.getElementById('tree_div').innerText='❌ root ALK not found'; return; }
 
-  /* 5 — layout */
-  const charWidth=9,maxNameLen=d3.max(flat,d=>d.name.length);
-  const hSpacing=Math.max(180,maxNameLen*charWidth+50),vSpacing=40;
-  const root=d3.hierarchy(rootData,d=>d.children),tree=d3.tree().nodeSize([vSpacing,hSpacing]);
-  root.descendants().forEach(d=>{if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;} });
+  /* 5 — layout helpers */
+  const charWidth=9, maxNameLen=d3.max(flat,d=>d.name.length);
+  const hSpacing=Math.max(180,maxNameLen*charWidth+50), vSpacing=40;
+  const root=d3.hierarchy(rootData,d=>d.children);
+  const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
 
+  /* collapse Gen-2 on load */
+  root.descendants().forEach(d=>{
+    if(d.data.gen===2 && d.children){ d._children=d.children; d.children=null; }
+  });
+
+  /* scaffolding */
   const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
-  const zoomGroup=svg.append('g'),chartGroup=zoomGroup.append('g');
+  const zoomGroup=svg.append('g'), chartGroup=zoomGroup.append('g');
   svg.call(d3.zoom().scaleExtent([0.5,2]).on('zoom',({transform})=>zoomGroup.attr('transform',transform)));
 
-  function toggle(_,d){ if(d.data.gen===2){ d.children? (d._children=d.children,d.children=null):(d.children=d._children,d._children=null); update(); } }
+  function toggle(_,d){
+    if(d.data.gen===2){
+      d.children ? (d._children=d.children,d.children=null)
+                 : (d.children=d._children,d._children=null);
+      update();
+    }
+  }
 
-  /* -------------------------------------------------------------------- */
+  /* --------------------------- UPDATE ---------------------------------- */
   function update(){
     tree(root);
 
     const xs=root.descendants().map(d=>d.x),
-          ys=root.descendants().map(d=>d.y),m=100;
-    svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+m*2,Math.max(...xs)-Math.min(...xs)+m*2].join(' '));
+          ys=root.descendants().map(d=>d.y), m=100;
+    svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+m*2,
+                              Math.max(...xs)-Math.min(...xs)+m*2].join(' '));
     chartGroup.attr('transform',`translate(${m-Math.min(...ys)},${m-Math.min(...xs)})`);
 
-    const stub = 20;
-    const indent = 12;                   /*  ← global box-indent */
+    const stub   = 20;
+    const indent = 12;
 
     /* trunks */
     const parents=root.descendants().filter(d=>d.children&&d.children.length);
     chartGroup.selectAll('path.trunk')
       .data(parents,d=>d.data.id)
       .join(
-        enter=>enter.append('path').attr('class','trunk'),
-        update=>update,
-        exit=>exit.remove())
+        e=>e.append('path').attr('class','trunk'),
+        u=>u,
+        x=>x.remove()
+      )
       .attr('d',d=>{
         const pw=Math.max(80,d.data.name.length*charWidth+20),
               px=d.y+pw/2, tx=px+stub,
@@ -96,38 +116,49 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    /* branches — arm runs right up to child box left edge (parentStubX+indent) */
+    /* ★ 1 — branches: hit child-trunk if the child has its own children */
     chartGroup.selectAll('path.branch')
-      .data(root.links(), d => d.target.data.id)
+      .data(root.links(),d=>d.target.data.id)
       .join(
-        enter => enter.append('path').attr('class','branch'),
-        update => update,
-        exit   => exit.remove())
-      .attr('d', d => {
-        const srcW   = Math.max(80, d.source.data.name.length * charWidth + 20);
-        const parentStubX = d.source.y + srcW / 2 + stub;     // Gen-2 trunk X
-        const endX   = parentStubX + indent;                  // child box edge
+        e=>e.append('path').attr('class','branch'),
+        u=>u,
+        x=>x.remove()
+      )
+      .attr('d',d=>{
+        const srcW = Math.max(80,d.source.data.name.length*charWidth+20);
+        const parentStubX = d.source.y + srcW/2 + stub;           // Gen-2 trunk
+
+        const trgW = Math.max(80,d.target.data.name.length*charWidth+20);
+        const childTrunkX = d.target.y + trgW/2 + stub;           // if child has sub-tree
+        const leafX       = parentStubX + indent;                 // regular leaf box
+
+        const endX = (d.target.children && d.target.children.length) ? childTrunkX : leafX;
         return `M${parentStubX},${d.target.x}H${endX}`;
       });
 
-    /* nodes — left edge sits exactly at parentStubX+indent */
+    /* ★ 2 — node placement: indent only leaves */
     chartGroup.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
-        enter=>{const g=enter.append('g').attr('class','node').on('click',toggle);
-                g.append('rect');g.append('text');g.append('title');return g;},
-        update=>update,
-        exit=>exit.remove())
+        enter=>{
+          const g=enter.append('g').attr('class','node').on('click',toggle);
+          g.append('rect'); g.append('text'); g.append('title'); return g;
+        },
+        u=>u,
+        x=>x.remove()
+      )
       .each(function(d){
-        const g=d3.select(this),
-              txt=d.data.name,
+        const g=d3.select(this), txt=d.data.name,
               boxW=Math.max(80,txt.length*charWidth+20);
 
         const parentStubX = d.parent
           ? ( d.parent.y + Math.max(80,d.parent.data.name.length*charWidth+20)/2 + stub )
-          : ( d.y - boxW/2 );  // keep root centred
+          : ( d.y - boxW/2 );        // root stays centred
 
-        g.attr('transform',`translate(${parentStubX+indent},${d.x})`);
+        /* indent leaf boxes, but keep internal nodes flush with their trunk */
+        const shift = (d.children && d.children.length) ? 0 : indent;
+
+        g.attr('transform',`translate(${parentStubX+shift},${d.x})`);
         g.select('rect')
           .attr('class',`node-rect gen${d.data.gen}`)
           .attr('x',0).attr('y',-12).attr('width',boxW).attr('height',24);
