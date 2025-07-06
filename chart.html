@@ -132,25 +132,49 @@
       }
     }
 
-    // 11) Draw / update routine
-    function update(){
-      tree(root);
+    function update() {
+  // 1) Re-run the layout so root.x/root.y are up-to-date
+  tree(root);
 
-      // LINKS
-      const link = chartGroup.selectAll('path.link')
-        .data(root.links(), d=>d.target.data.id);
+  // 2) Define diagonal before you use it
+  function diagonal(d) {
+    const srcW = Math.max(80, d.source.data.name.length * charWidth + 20);
+    const trgW = Math.max(80, d.target.data.name.length * charWidth + 20);
 
-      link.join(
-        enter => enter.append('path')
-                       .attr('class','link')
-                       .attr('d', d3.linkHorizontal()
-                         .x(d=>d.y).y(d=>d.x)
-                       ),
-        update => update.attr('d', d3.linkHorizontal()
-                                   .x(d=>d.y).y(d=>d.x)
-                                 ),
-        exit   => exit.remove()
-      );
+    const x1 = d.source.y + srcW/2;
+    const y1 = d.source.x;
+    const x2 = d.target.y - trgW/2;
+    const y2 = d.target.x;
+    const xm = x1 + (x2 - x1)/2;
+
+    return `M${x1},${y1}H${xm}V${y2}H${x2}`;
+  }
+
+  // 3) Now bind your links using diagonal()
+  const links = chartGroup.selectAll('path.link')
+    .data(root.links(), d => d.target.data.id);
+
+  links.join(
+    enter => enter.append('path')
+                   .attr('class','link')
+                   .attr('d', diagonal),
+    update => update.attr('d', diagonal),
+    exit   => exit.remove()
+  );
+
+  // …then your node binding comes after…
+}
+
+
+
+
+
+
+
+
+
+
+
 
       // NODES
       const node = chartGroup.selectAll('g.node')
