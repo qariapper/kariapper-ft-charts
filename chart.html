@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - ver9</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - ver10</h1>
   <div id="tree_div">Loading…</div>
 
   <script>
@@ -47,7 +47,8 @@
     ).then(r=>r.text());
     const json = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
     console.log('Loaded rows:', json.table.rows.length);
-
+    console.log(raw.slice(0,200));
+    
     const headers = json.table.cols.map(c=>c.label);
     const rows    = json.table.rows;
 
