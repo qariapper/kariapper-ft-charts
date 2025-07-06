@@ -26,6 +26,14 @@
       dominant-baseline:central;
     }
     .node { cursor:pointer; }
+    .trunk,
+    .branch {
+      fill: none;
+      stroke: #888;
+      stroke-width: 1.5px;
+      stroke-linecap: round;
+    }
+
   </style>
 </head>
 <body>
@@ -145,69 +153,105 @@
     }
 
     // 12) The single update() that draws links + left‐aligned nodes
-    function update(){
-      // re-run layout
-      tree(root);
+    function update() {
+  // 1) Re-run the tree layout
+  tree(root);
 
-      // LINKS
-      const links = chartGroup.selectAll('path.link')
-        .data(root.links(), d=>d.target.data.id);
+  // 2) Draw one vertical trunk per parent with >1 visible child
+  const trunkData = root.descendants().filter(d=>d.children && d.children.length > 1);
+  const trunks = chartGroup.selectAll('path.trunk')
+    .data(trunkData, d=>d.data.id);
 
-      links.join(
-        enter => enter.append('path')
-                       .attr('class','link')
-                       .attr('d', diagonal),
-        update => update.attr('d', diagonal),
-        exit   => exit.remove()
-      );
+  trunks.join(
+    enter => enter.append('path').attr('class','trunk'),
+    update => update,
+    exit   => exit.remove()
+  )
+  .attr('d', d => {
+    // compute the X at the parent’s right edge
+    const pw = Math.max(80, d.data.name.length*charWidth + 20);
+    const x = d.y + pw/2;
+    // collect all child Y positions
+    const ys = d.children.map(c=>c.x);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
+    return `M${x},${y0}V${y1}`;  // vertical line
+  });
 
-      // NODES
-      const nodes = chartGroup.selectAll('g.node')
-        .data(root.descendants(), d=>d.data.id);
+  // 3) Draw one horizontal branch per child
+  const branches = chartGroup.selectAll('path.branch')
+    .data(root.links(), d=>d.target.data.id);
 
-      const nodesEnter = nodes.join(
-        enter => {
-          const g = enter.append('g')
-            .attr('class','node')
-            // we'll position inside each .each() below
-            .on('click', toggle);
-          g.append('rect');
-          g.append('text');
-          g.append('title');
-          return g;
-        },
-        update => update,
-        exit   => exit.remove()
-      );
+  branches.join(
+    enter => enter.append('path').attr('class','branch'),
+    update => update,
+    exit   => exit.remove()
+  )
+  .attr('d', d => {
+    // parent's right-edge X
+    const pw = Math.max(80, d.source.data.name.length*charWidth + 20);
+    const x1 = d.source.y + pw/2;
+    // child's left-edge X
+    const tw = Math.max(80, d.target.data.name.length*charWidth + 20);
+    const x2 = d.target.y - tw/2;
+    // horizontal from trunk to child
+    return `M${x1},${d.target.x}H${x2}`;
+  });
 
-      nodesEnter.merge(nodes)
-        .each(function(d){
-          const g    = d3.select(this),
-                txt  = d.data.name,
-                boxW = Math.max(80, txt.length*charWidth + 20);
+  // 4) Bind & draw the nodes (left‐aligned boxes + labels)
+  const nodes = chartGroup.selectAll('g.node')
+    .data(root.descendants(), d=>d.data.id);
 
-          // Position the group so (0,0) is the top-left of the box:
-          g.attr('transform', `translate(${d.y - boxW/2},${d.x})`);
+  const nodesEnter = nodes.join(
+    enter => {
+      const g = enter.append('g')
+        .attr('class','node')
+        .on('click', toggle);
+      g.append('rect');
+      g.append('text');
+      g.append('title');
+      return g;
+    },
+    update => update,
+    exit   => exit.remove()
+  );
 
-          // Draw the rect at x=0
-          g.select('rect')
-            .attr('class', `node-rect gen${d.data.gen}`)
-            .attr('x', 0).attr('y', -12)
-            .attr('width', boxW).attr('height', 24);
+  nodesEnter.merge(nodes)
+    .each(function(d) {
+      const g   = d3.select(this);
+      const txt = d.data.name;
+      const boxW= Math.max(80, txt.length*charWidth + 20);
 
-          // Left-align text with 10px padding
-          g.select('text')
-            .attr('class','node-text')
-            .attr('x', 10).attr('y', 0)
-            .text(txt);
+      // shift the group so x=0 is the left edge
+      g.attr('transform', `translate(${d.y - boxW/2},${d.x})`);
 
-          // Spouse tooltip
-          g.select('title')
-            .text(d.data.spouse
-              ? `Spouse(s): ${d.data.spouse}`
-              : txt);
-        });
-    }
+      // draw box
+      g.select('rect')
+        .attr('class', `node-rect gen${d.data.gen}`)
+        .attr('x', 0).attr('y', -12)
+        .attr('width',  boxW)
+        .attr('height', 24);
+
+      // left-aligned text with 10px indent
+      g.select('text')
+        .attr('class','node-text')
+        .attr('x', 10).attr('y', 0)
+        .text(txt);
+
+      // tooltip
+      g.select('title')
+        .text(d.data.spouse
+          ? `Spouse(s): ${d.data.spouse}`
+          : txt);
+    });
+}
+
+
+
+
+
+
+
+
 
     // 13) Initial draw (with Gen 2 collapsed)
     update();
