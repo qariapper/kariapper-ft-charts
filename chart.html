@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 18</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 19</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -69,21 +69,26 @@
 
   function toggle(_,d){ if(d.data.gen===2){ d.children? (d._children=d.children,d.children=null):(d.children=d._children,d._children=null); update(); } }
 
+  /* -------------------------------------------------------------------- */
   function update(){
     tree(root);
 
-    /* viewBox */
-    const xs=root.descendants().map(d=>d.x),ys=root.descendants().map(d=>d.y),m=100;
+    const xs=root.descendants().map(d=>d.x),
+          ys=root.descendants().map(d=>d.y),m=100;
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+m*2,Math.max(...xs)-Math.min(...xs)+m*2].join(' '));
     chartGroup.attr('transform',`translate(${m-Math.min(...ys)},${m-Math.min(...xs)})`);
 
-    const stub=20,indent=12;          /* <-- NEW indent for each child box */
+    const stub = 20;
+    const indent = 12;                   /*  ← global box-indent */
 
     /* trunks */
     const parents=root.descendants().filter(d=>d.children&&d.children.length);
     chartGroup.selectAll('path.trunk')
       .data(parents,d=>d.data.id)
-      .join(enter=>enter.append('path').attr('class','trunk'),update=>update,exit=>exit.remove())
+      .join(
+        enter=>enter.append('path').attr('class','trunk'),
+        update=>update,
+        exit=>exit.remove())
       .attr('d',d=>{
         const pw=Math.max(80,d.data.name.length*charWidth+20),
               px=d.y+pw/2, tx=px+stub,
@@ -91,29 +96,21 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    /* branches ───────────────────────────────────────────── */
+    /* branches — arm runs right up to child box left edge (parentStubX+indent) */
     chartGroup.selectAll('path.branch')
       .data(root.links(), d => d.target.data.id)
       .join(
-        enter => enter.append('path').attr('class', 'branch'),
+        enter => enter.append('path').attr('class','branch'),
         update => update,
-        exit   => exit.remove()
-      )
+        exit   => exit.remove())
       .attr('d', d => {
-        /* x where the parent’s vertical trunk sits … */
         const srcW   = Math.max(80, d.source.data.name.length * charWidth + 20);
-        const startX = d.source.y + srcW / 2 + stub;
-
-        /* x of the *left* edge of the child’s box … */
-        const trgW   = Math.max(80, d.target.data.name.length * charWidth + 20);
-        const endX   = d.target.y - trgW / 2;
-
-        /* horizontal segment from parent-trunk to child-trunk */
-        return `M${startX},${d.target.x}H${endX}`;
+        const parentStubX = d.source.y + srcW / 2 + stub;     // Gen-2 trunk X
+        const endX   = parentStubX + indent;                  // child box edge
+        return `M${parentStubX},${d.target.x}H${endX}`;
       });
 
-
-    /* nodes — left edge sits at (parentStubX + indent) */
+    /* nodes — left edge sits exactly at parentStubX+indent */
     chartGroup.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
@@ -122,10 +119,14 @@
         update=>update,
         exit=>exit.remove())
       .each(function(d){
-        const g=d3.select(this),txt=d.data.name,boxW=Math.max(80,txt.length*charWidth+20);
-        const parentStubX=d.parent
-          ? (d.parent.y+Math.max(80,d.parent.data.name.length*charWidth+20)/2+stub)
-          : (d.y-boxW/2);
+        const g=d3.select(this),
+              txt=d.data.name,
+              boxW=Math.max(80,txt.length*charWidth+20);
+
+        const parentStubX = d.parent
+          ? ( d.parent.y + Math.max(80,d.parent.data.name.length*charWidth+20)/2 + stub )
+          : ( d.y - boxW/2 );  // keep root centred
+
         g.attr('transform',`translate(${parentStubX+indent},${d.x})`);
         g.select('rect')
           .attr('class',`node-rect gen${d.data.gen}`)
