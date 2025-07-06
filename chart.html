@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - ver14</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - ver15</h1>
   <div id="tree_div">Loading…</div>
 
   <script>
@@ -92,8 +92,11 @@
 
     // —— spacing metrics ——  
     const charWidth  = 7;
-    const maxNameLen = d3.max(flat, d=>d.name.length);
+    const nameLens  = flat.map(d => (typeof d.name === 'string' ? d.name.length : 0));
+    const maxNameLen = nameLens.length ? d3.max(nameLens) : 0;
     const hSpacing   = Math.max(180, maxNameLen*charWidth + 50);
+    
+    
     const vSpacing   = 40;
 
     // —— build hierarchy (no layout yet) ——
