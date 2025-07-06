@@ -1,175 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Kariapper Family Tree – up to 3 generations</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <style>
-    body{margin:0;font-family:"Segoe UI",sans-serif}
-    h1{text-align:center;margin:12px 0}
-    #tree_div{width:100%;height:calc(100vh - 50px);overflow:auto}
-    svg{display:block;width:100%;height:auto}
-
-    .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
-    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
-    .gen1{fill:#eceff4;stroke:#4c566a}
-    .gen2{fill:#e5e9f0;stroke:#3b4252}
-    .gen3{fill:#d8dee9;stroke:#2e3440}
-
-    .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
-    .node{cursor:pointer}
-  </style>
+<meta charset="utf-8" />
+<title>Kariapper Family Tree – up to 3 generations</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+ body{margin:0;font-family:"Segoe UI",sans-serif}
+ h1{text-align:center;margin:12px 0}
+ #tree_div{width:100%;height:calc(100vh - 50px);overflow:auto}
+ svg{display:block;width:100%;height:auto}
+ .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
+ .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
+ .gen1{fill:#eceff4;stroke:#4c566a}
+ .gen2{fill:#e5e9f0;stroke:#3b4252}
+ .gen3{fill:#d8dee9;stroke:#2e3440}
+ .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
+ .node{cursor:pointer}
+</style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 25</h1>
-  <div id="tree_div">Loading…</div>
+<h1>Kariapper Family Tree – up to 3 generations – ver 26</h1>
+<div id="tree_div">Loading…</div>
 
 <script>
 (async function () {
-  /* 1 — load ------------------------------------------------------------- */
-  const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-  const raw = await fetch(
-      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
-    ).then(r=>r.text());
-  const json=JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
-  const headers=json.table.cols.map(c=>c.label), rows=json.table.rows;
 
-  /* 2 — columns */
-  const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
-  const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
-  const genIdx    = headers.findIndex(h=>/^generation$/i.test(h));
-  const spouseIdx = headers.findIndex(h=>/spouse/i.test(h));
-  if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
-    document.getElementById('tree_div').innerText='❌ missing columns'; return;
-  }
-
-  /* 3 — flat rows */
-  const flat = rows.map(r=>{
-    const id=r.c[idIdx]?.v||'';
-    return{
-      id,
-      name  : r.c[nameIdx]?.v||'',
-      gen   : +r.c[genIdx]?.v,
-      parent: id.includes('.') ? id.replace(/\.[^.]+$/,'') : '',
-      spouse: r.c[spouseIdx]?.v||'',
-      children:[]
-    };
-  }).filter(d=>d.id && d.name && Number.isFinite(d.gen) && d.gen<=3);
-
-  /* 4 — nest  */
-  const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
-  flat.forEach(d=>{ if(d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
-  const rootData=byId['ALK'];
-  if(!rootData){ document.getElementById('tree_div').innerText='❌ root ALK not found'; return; }
-
-  /* 5 — layout helpers */
-  const charWidth=9, maxNameLen=d3.max(flat,d=>d.name.length);
-  const hSpacing=Math.max(180,maxNameLen*charWidth+50), vSpacing=40;
-  const root=d3.hierarchy(rootData,d=>d.children);
-  const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
-
-  /* collapse Gen-2 on load */
-  root.descendants().forEach(d=>{
-    if(d.data.gen===2 && d.children){ d._children=d.children; d.children=null; }
-  });
-
-  /* scaffolding */
-  const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
-  const zoomGroup=svg.append('g'), chartGroup=zoomGroup.append('g');
-  svg.call(d3.zoom().scaleExtent([0.5,2]).on('zoom',({transform})=>zoomGroup.attr('transform',transform)));
-
-  function toggle(_,d){
-    if(d.data.gen===2){
-      d.children ? (d._children=d.children,d.children=null)
-                 : (d.children=d._children,d._children=null);
-      update();
-    }
-  }
-/* UPDATE-------*/
-function update () {
-  tree(root);
-
-  /* helper must come first ─────────────────────── */
-  const stub = 20, indent = 12;                 // same values as before
-  const colX = depth => depth * hSpacing;
-  /* ---------------------------------------------- */
-
-  /* viewBox & pan-frame */
-  const xs = root.descendants().map(d => d.x);
-  const ys = root.descendants().map(d => colX(d.depth));
-  const M  = 100;
-  svg.attr('viewBox',
-           [0, 0,
-            Math.max(...ys) - Math.min(...ys) + M * 2,
-            Math.max(...xs) - Math.min(...xs) + M * 2].join(' '));
-  chartGroup.attr('transform',
-           `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
-
-  /* 1 ── vertical trunks + root stub */
-  chartGroup.selectAll('path.trunk')
-    .data(root.descendants().filter(d => d.children && d.children.length),
-          d => d.data.id)
-    .join(
-      enter => enter.append('path').attr('class','trunk'),
-      update => update, exit => exit.remove()
-    )
-    .attr('d', d => {
-      const x  = colX(d.depth);
-      const xs = d.children.map(c => c.x);
-      const V  = `M${x},${d3.min(xs)}V${d3.max(xs)}`;
-      const H  = d.depth
-               ? `M${x - stub},${d.x}H${x}`   // back-stub for depth≥1
-               : `M${x},${d.x}H${x + stub}`;  // forward stub for root
-      return (H + V).replace(/\s+/g,'');
-    });
-
-  /* 2 ── horizontal branches */
-  chartGroup.selectAll('path.branch')
-    .data(root.links(), d => d.target.data.id)
-    .join(
-      enter => enter.append('path').attr('class','branch'),
-      update => update, exit => exit.remove()
-    )
-    .attr('d', d =>
-      `M${colX(d.source.depth)},${d.target.x}H${colX(d.target.depth)}`);
-
-  /* 3 ── nodes */
-  chartGroup.selectAll('g.node')
-    .data(root.descendants(), d => d.data.id)
-    .join(
-      enter => {
-        const g = enter.append('g').attr('class','node').on('click',toggle);
-        g.append('rect'); g.append('text'); g.append('title');
-        return g;
-      },
-      update => update, exit => exit.remove()
-    )
-    .each(function (d) {
-      const g    = d3.select(this),
-            txt  = d.data.name,
-            boxW = Math.max(80, txt.length * charWidth + 20),
-            boxX = colX(d.depth) + (d.depth ? indent : 0);
-
-      g.attr('transform', `translate(${boxX},${d.x})`);
-      g.select('rect')
-        .attr('class', `node-rect gen${d.data.gen}`)
-        .attr('x', 0).attr('y', -12)
-        .attr('width', boxW).attr('height', 24);
-      g.select('text')
-        .attr('class', 'node-text')
-        .attr('x', 10).attr('y', 0)
-        .text(txt);
-      g.select('title')
-        .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : txt);
-    });
-}
-
-
-
-
-  update();
-})();
-</script>
-</body>
-</html>
+/* ────────── 1. FETCH SHEET ────────── */
+const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
+const raw = await fetch(
+  `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
+).then(r
