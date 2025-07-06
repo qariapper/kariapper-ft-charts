@@ -20,7 +20,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 23</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 24</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -77,68 +77,76 @@
   }
 
   /* ------------  UPDATE   ------------ */
+/* ------------------------------------------------------------------ */
+/*  UPDATE ─ draw / redraw everything                                 */
+/* ------------------------------------------------------------------ */
 function update () {
-  tree(root);
+  tree(root);                         // 1 re-compute x/y
 
-  /* ───────── responsive viewBox ───────── */
+  /* 2 ───────── responsive viewBox */
   const xs = root.descendants().map(d => d.x),
         ys = root.descendants().map(d => d.y),
         M  = 100;
   svg.attr('viewBox',
            [0, 0,
             Math.max(...ys) - Math.min(...ys) + M * 2,
-            Math.max(...xs) - Math.min(...xs) + M * 2].join(' '));
+            Math.max(...xs) - Math.min(...xs) + M * 2]
+           .join(' '));
   chartGroup.attr('transform',
-    `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
+       `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
 
-  /* helpers */
-  const stub   = 20;   // length of branch out of a trunk
-  const indent = 12;   // gap between trunk and box
+  /* constants used everywhere below */
+  const stub   = 20;   // length of the tiny horizontal before any box
+  const indent = 0;    // extra indent (keep 0 → boxes start at stub)
 
-  /* ---------------------------------------------------------------------
-      1.  vertical TRUNKS  (one per *visible* node that has children)
-     ------------------------------------------------------------------ */
+  /* 3 ───────── little horizontal stub for *every* node */
+  chartGroup.selectAll('path.stub')
+    .data(root.descendants(), d => d.data.id)
+    .join(
+      enter => enter.append('path').attr('class','branch stub'),
+      update => update,
+      exit   => exit.remove()
+    )
+    .attr('d', d => {
+      const trunkX = d.depth * hSpacing;
+      return `M${trunkX},${d.x}H${trunkX + stub}`;
+    });
+
+  /* 4 ───────── vertical trunks (only for nodes with visible children) */
   chartGroup.selectAll('path.trunk')
     .data(root.descendants().filter(d => d.children && d.children.length),
           d => d.data.id)
     .join(
-      enter => enter.append('path').attr('class', 'trunk'),
+      enter => enter.append('path').attr('class','trunk'),
       update => update,
       exit   => exit.remove()
     )
     .attr('d', d => {
-      /* the column for *this* generation — perfectly stacked */
-      const trunkX = d.depth * hSpacing;          /* ← key line               */
+      const trunkX = d.depth * hSpacing;          // pure generation column
       const ys     = d.children.map(c => c.x);
-      return `M${trunkX},${d.x}            H${trunkX + stub}
-              M${trunkX + stub},${d3.min(ys)} V${d3.max(ys)}`.replace(/\s+/g,'');
+      return `M${trunkX},${d3.min(ys)}V${d3.max(ys)}`;
     });
 
-  /* ---------------------------------------------------------------------
-      2.  horizontal BRANCHES (parent-trunk ▸ child-trunk)
-     ------------------------------------------------------------------ */
-  chartGroup.selectAll('path.branch')
+  /* 5 ───────── horizontal branches (parent-trunk ▸ child-trunk) */
+  chartGroup.selectAll('path.branch.core')
     .data(root.links(), d => d.target.data.id)
     .join(
-      enter => enter.append('path').attr('class', 'branch'),
+      enter => enter.append('path').attr('class','branch core'),
       update => update,
       exit   => exit.remove()
     )
     .attr('d', d => {
-      const parentTrunkX = d.source.depth * hSpacing + stub;
-      const childTrunkX  = d.target.depth * hSpacing + stub;
-      return `M${parentTrunkX},${d.target.x}H${childTrunkX}`;
+      const parentX = d.source.depth * hSpacing + stub;   // after parent stub
+      const childX  = d.target.depth * hSpacing;          // child trunk
+      return `M${parentX},${d.target.x}H${childX}`;
     });
 
-  /* ---------------------------------------------------------------------
-      3.  NODE boxes + labels  (box sits at its own trunk + indent)
-     ------------------------------------------------------------------ */
+  /* 6 ───────── node boxes + labels */
   chartGroup.selectAll('g.node')
     .data(root.descendants(), d => d.data.id)
     .join(
       enter => {
-        const g = enter.append('g')
-                       .attr('class', 'node')
+        const g = enter.append('g').attr('class','node')
                        .on('click', toggle);
         g.append('rect');
         g.append('text');
@@ -149,27 +157,28 @@ function update () {
       exit   => exit.remove()
     )
     .each(function (d) {
-      const g    = d3.select(this);
-      const text = d.data.name;
-      const boxW = Math.max(80, text.length * charWidth + 20);
+      const g     = d3.select(this);
+      const label = d.data.name;
+      const boxW  = Math.max(80, label.length * charWidth + 20);
 
-      const boxLeft = d.depth * hSpacing + stub + indent;   // <- new rule
-      g.attr('transform', `translate(${boxLeft},${d.x})`);
+      const left  = d.depth * hSpacing + stub + indent;   // ← left edge
+      g.attr('transform', `translate(${left},${d.x})`);
 
       g.select('rect')
         .attr('class', `node-rect gen${d.data.gen}`)
-        .attr('x', 0).attr('y', -12)
-        .attr('width', boxW).attr('height', 24);
+        .attr('x',0).attr('y',-12)
+        .attr('width', boxW).attr('height',24);
 
       g.select('text')
-        .attr('class', 'node-text')
-        .attr('x', 10).attr('y', 0)
-        .text(text);
+        .attr('class','node-text')
+        .attr('x',10).attr('y',0)
+        .text(label);
 
       g.select('title')
-        .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : text);
+        .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : label);
     });
 }
+
 
 
 
