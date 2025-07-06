@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 16</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 17</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -69,7 +69,7 @@
   if(!rootData){ document.getElementById('tree_div').innerText='❌ Root “ALK” not found.'; return; }
 
   /* 5 — layout helpers */
-  const charWidth  = 7;
+  const charWidth  = 9;
   const maxNameLen = d3.max(flat, d=>d.name.length);
   const hSpacing   = Math.max(180, maxNameLen*charWidth + 50);
   const vSpacing   = 40;
