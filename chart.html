@@ -38,17 +38,22 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - ver3</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - ver4_</h1>
   <div id="tree_div">Loading…</div>
   <script>
   (async function(){
     // 1) Load your sheet as JSONP
     const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
     const sheetGid = '0';
+  
     const raw = await fetch(
-      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq` +
-      `?gid=${sheetGid}&headers=1&tqx=out:json`
+      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
+      + `?sheet=Master`                        // ← your exact tab name
+      + `&gid=${sheetGid}`                     // gid=0 is fine
+      + `&headers=1`
+      + `&tqx=out:json`
     ).then(r=>r.text());
+  
     const json    = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
     const headers = json.table.cols.map(c=>c.label);
     const rows    = json.table.rows;
