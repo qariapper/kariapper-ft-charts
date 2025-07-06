@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 17b</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 18</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -91,15 +91,27 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    /* branches (parent-stub → stub+indent) */
+    /* branches ───────────────────────────────────────────── */
     chartGroup.selectAll('path.branch')
-      .data(root.links(),d=>d.target.data.id)
-      .join(enter=>enter.append('path').attr('class','branch'),u=>u,exit=>exit.remove())
-      .attr('d',d=>{
-        const pw=Math.max(80,d.source.data.name.length*charWidth+20);
-        const startX=d.source.y+pw/2+stub;
-        return `M${startX},${d.target.x}H${startX+indent}`;
+      .data(root.links(), d => d.target.data.id)
+      .join(
+        enter => enter.append('path').attr('class', 'branch'),
+        update => update,
+        exit   => exit.remove()
+      )
+      .attr('d', d => {
+        /* x where the parent’s vertical trunk sits … */
+        const srcW   = Math.max(80, d.source.data.name.length * charWidth + 20);
+        const startX = d.source.y + srcW / 2 + stub;
+
+        /* x of the *left* edge of the child’s box … */
+        const trgW   = Math.max(80, d.target.data.name.length * charWidth + 20);
+        const endX   = d.target.y - trgW / 2;
+
+        /* horizontal segment from parent-trunk to child-trunk */
+        return `M${startX},${d.target.x}H${endX}`;
       });
+
 
     /* nodes — left edge sits at (parentStubX + indent) */
     chartGroup.selectAll('g.node')
