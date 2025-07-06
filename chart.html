@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 20b</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 21</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -87,86 +87,96 @@
     }
   }
 
-  /* --------------------------- UPDATE ---------------------------------- */
-  function update(){
-    tree(root);
+/* --------------------------- UPDATE ---------------------------------- */
+function update () {
+  tree(root);
 
-    const xs=root.descendants().map(d=>d.x),
-          ys=root.descendants().map(d=>d.y), m=100;
-    svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+m*2,
-                              Math.max(...xs)-Math.min(...xs)+m*2].join(' '));
-    chartGroup.attr('transform',`translate(${m-Math.min(...ys)},${m-Math.min(...xs)})`);
+  /* ---------- responsive viewBox ---------- */
+  const xs = root.descendants().map(d => d.x),
+        ys = root.descendants().map(d => d.y),
+        M  = 100;
+  svg.attr(
+    'viewBox',
+    [ 0, 0,
+      Math.max(...ys) - Math.min(...ys) + M * 2,
+      Math.max(...xs) - Math.min(...xs) + M * 2
+    ].join(' ')
+  );
+  chartGroup.attr(
+    'transform',
+    `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`
+  );
 
-    const stub   = 20;
-    const indent = 12;
+  /* shared helpers */
+  const stub   = 20;                // short horizontal out of every trunk
+  const colX   = d => d.depth * hSpacing;   // left column per generation
 
-    /* trunks */
-    const parents=root.descendants().filter(d=>d.children&&d.children.length);
-    chartGroup.selectAll('path.trunk')
-      .data(parents,d=>d.data.id)
-      .join(
-        e=>e.append('path').attr('class','trunk'),
-        u=>u,
-        x=>x.remove()
-      )
-      .attr('d',d=>{
-        const pw=Math.max(80,d.data.name.length*charWidth+20),
-              px=d.y+pw/2, tx=px+stub,
-              ys=d.children.map(c=>c.x);
-        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-      });
+  /* ────────────── 1. vertical trunks ────────────── */
+  chartGroup.selectAll('path.trunk')
+    .data(root.descendants().filter(d => d.children && d.children.length),
+          d => d.data.id)
+    .join(
+      enter => enter.append('path').attr('class', 'trunk'),
+      update => update,
+      exit   => exit.remove()
+    )
+    .attr('d', d => {
+      const x  = colX(d);           // fixed column for this generation
+      const tx = x + stub;          // trunk begins after stub
+      const ys = d.children.map(c => c.x);
+      return `M${x},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
+    });
 
-    /* ★ 1 — branches: hit child-trunk if the child has its own children */
-    chartGroup.selectAll('path.branch')
-      .data(root.links(),d=>d.target.data.id)
-      .join(
-        e=>e.append('path').attr('class','branch'),
-        u=>u,
-        x=>x.remove()
-      )
-      .attr('d',d=>{
-        const srcW = Math.max(80,d.source.data.name.length*charWidth+20);
-        const parentStubX = d.source.y + srcW/2 + stub;           // Gen-2 trunk
+  /* ────────────── 2. horizontal branches ────────────── */
+  chartGroup.selectAll('path.branch')
+    .data(root.links(), d => d.target.data.id)
+    .join(
+      enter => enter.append('path').attr('class', 'branch'),
+      update => update,
+      exit   => exit.remove()
+    )
+    .attr('d', d => {
+      const parentTrunk = colX(d.source) + stub;
+      const childTrunk  = colX(d.target) + stub;
+      return `M${parentTrunk},${d.target.x}H${childTrunk}`;
+    });
 
-        const trgW = Math.max(80,d.target.data.name.length*charWidth+20);
-        const childTrunkX = d.target.y + trgW/2 + stub;           // if child has sub-tree
-        const leafX       = parentStubX + indent;                 // regular leaf box
+  /* ────────────── 3. node boxes & labels ────────────── */
+  chartGroup.selectAll('g.node')
+    .data(root.descendants(), d => d.data.id)
+    .join(
+      enter => {
+        const g = enter.append('g').attr('class', 'node').on('click', toggle);
+        g.append('rect'); g.append('text'); g.append('title');
+        return g;
+      },
+      update => update,
+      exit   => exit.remove()
+    )
+    .each(function (d) {
+      const g     = d3.select(this);
+      const text  = d.data.name;
+      const boxW  = Math.max(80, text.length * charWidth + 20);
 
-        const endX = (d.target.children && d.target.children.length) ? childTrunkX : leafX;
-        return `M${parentStubX},${d.target.x}H${endX}`;
-      });
+      /* every box starts right after its own trunk’s stub */
+      const boxLeft = colX(d) + stub;
+      g.attr('transform', `translate(${boxLeft},${d.x})`);
 
-    /* ★ 2 — node placement: indent only leaves */
-    chartGroup.selectAll('g.node')
-      .data(root.descendants(),d=>d.data.id)
-      .join(
-        enter=>{
-          const g=enter.append('g').attr('class','node').on('click',toggle);
-          g.append('rect'); g.append('text'); g.append('title'); return g;
-        },
-        u=>u,
-        x=>x.remove()
-      )
-      .each(function(d){
-        const g=d3.select(this), txt=d.data.name,
-              boxW=Math.max(80,txt.length*charWidth+20);
+      g.select('rect')
+        .attr('class', `node-rect gen${d.data.gen}`)
+        .attr('x', 0).attr('y', -12)
+        .attr('width', boxW).attr('height', 24);
 
-        const parentStubX = d.parent
-          ? ( d.parent.y + Math.max(80,d.parent.data.name.length*charWidth+20)/2 + stub )
-          : ( d.y - boxW/2 );        // root stays centred
+      g.select('text')
+        .attr('class', 'node-text')
+        .attr('x', 10).attr('y', 0)
+        .text(text);
 
-        /* NEW: indent **all** boxes  */
-        const shift = indent;
-        
+      g.select('title')
+        .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : text);
+    });
+}
 
-        g.attr('transform',`translate(${parentStubX+shift},${d.x})`);
-        g.select('rect')
-          .attr('class',`node-rect gen${d.data.gen}`)
-          .attr('x',0).attr('y',-12).attr('width',boxW).attr('height',24);
-        g.select('text').attr('class','node-text').attr('x',10).attr('y',0).text(txt);
-        g.select('title').text(d.data.spouse?`Spouse(s): ${d.data.spouse}`:txt);
-      });
-  }
 
   update();
 })();
