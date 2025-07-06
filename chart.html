@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 20</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 20b</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -155,8 +155,9 @@
           ? ( d.parent.y + Math.max(80,d.parent.data.name.length*charWidth+20)/2 + stub )
           : ( d.y - boxW/2 );        // root stays centred
 
-        /* indent leaf boxes, but keep internal nodes flush with their trunk */
-        const shift = (d.children && d.children.length) ? 0 : indent;
+        /* NEW: indent **all** boxes  */
+        const shift = indent;
+        
 
         g.attr('transform',`translate(${parentStubX+shift},${d.x})`);
         g.select('rect')
