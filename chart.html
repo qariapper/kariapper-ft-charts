@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - ver13</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - ver14</h1>
   <div id="tree_div">Loading…</div>
 
   <script>
@@ -57,7 +57,7 @@
     // —— find our four key columns ——
     const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
     const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
-    const genIdx    = headers.findIndex(h=>/gen\s*level/i.test(h));
+    const genIdx    = headers.findIndex(h=>/^generation$/i.test(h));
     const spouseIdx = headers.findIndex(h=>/spouse/i.test(h));
     if ([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)) {
       document.getElementById('tree_div').innerText =
@@ -73,7 +73,8 @@
       parent: (r.c[idIdx]?.v||'').replace(/\.[^.]+$/,''),
       spouse: r.c[spouseIdx]?.v||'',
       children:[]
-    })).filter(d=>d.id && d.name && d.gen>=1 && d.gen<=3);
+    })).filter(d=>d.id && d.name && Number.isFinite(d.gen) && d.gen<=3);
+    console.log('flat rows after filter:', flat.length);
 
     // —— nest byId ——
     const byId = {};
