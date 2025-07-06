@@ -20,7 +20,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 21</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 22</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -138,8 +138,7 @@
         const childTrunkX = d.target.y + trgW/2 + stub;
 
         /* draw stub only if target *actually* has (expanded OR collapsed) kids */
-        const hasKids = (d.target.children && d.target.children.length) ||
-                        (d.target._children && d.target._children.length);
+        const hasKids = d.target.children && d.target.children.length;   // draw stub only if open
 
         const endX = hasKids ? childTrunkX              // to child trunk
                              : parentStubX + indent;    // or just to box edge
