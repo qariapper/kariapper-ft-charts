@@ -138,109 +138,95 @@
     }
 
     // 10) Draw/update
-    function update(){
-      tree(root);
+    function update() {
+  // 1) Re‐run the layout
+  tree(root);
 
-      const stub = 20;
+  const stub = 20;  // length of short horizontal off‐shoot
 
-      // a) Vertical trunks + stub
-      const hasKids = root.descendants().filter(d=>d.children && d.children.length>0);
-      const trunks = chartGroup.selectAll('path.trunk')
-        .data(hasKids, d=>d.data.id);
+  // 2) Draw trunks: one vertical line per parent (with a stub)
+  const trunkData = root.descendants().filter(d => d.children && d.children.length > 0);
+  const trunks = chartGroup.selectAll('path.trunk')
+    .data(trunkData, d => d.data.id);
 
-      trunks.join(
-        enter=>enter.append('path').attr('class','trunk'),
-        upd=>upd,
-        exit=>exit.remove()
-      )
-      .attr('d', d=>{
-        const pw      = d3.select(this).datum().data.name.length*0; 
-        // compute box width from text below or just use dynamic measure:
-        // we'll measure each box below, but here approximate stub start:
-        const textEl = chartGroup.selectAll('g.node').filter(n=>n===d).select('text').node();
-        let boxW = pw;
-        if(textEl) boxW = textEl.getBBox().width + 20;
-        const px = d.y + boxW/2;
-        const tx = px + stub;
-        const ys = d.children.map(c=>c.x);
-        const y0 = Math.min(...ys), y1 = Math.max(...ys);
-        return `M${px},${d.x}H${tx}M${tx},${y0}V${y1}`;
-      });
+  trunks.join(
+    enter => enter.append('path').attr('class','trunk'),
+    upd   => upd,
+    exit  => exit.remove()
+  )
+  .attr('d', d => {
+    // box width based on charWidth
+    const pw = Math.max(80, d.data.name.length * charWidth + 20);
+    const px = d.y + pw/2;       // parent’s right edge
+    const tx = px + stub;        // start of trunk
+    const ys = d.children.map(c => c.x);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
+    // stub out, then full vertical
+    return `M${px},${d.x}H${tx}M${tx},${y0}V${y1}`;
+  });
 
-      // b) Horizontal branches
-      const branches = chartGroup.selectAll('path.branch')
-        .data(root.links(), d=>d.target.data.id);
+  // 3) Draw branches: one horizontal per child
+  const branches = chartGroup.selectAll('path.branch')
+    .data(root.links(), d => d.target.data.id);
 
-      branches.join(
-        enter=>enter.append('path').attr('class','branch'),
-        upd=>upd,
-        exit=>exit.remove()
-      )
-      .attr('d', d=>{
-        // measure parent box width
-        const pText = d.source.data.name;
-        const pW = d3.select(this).datum().source.data.name.length*0;
-        // measure child
-        const tText = d.target.data.name;
-        const tW = d3.select(this).datum().target.data.name.length*0;
-        // fallback stub:
-        const parentX = d.source.y + pW/2 + stub;
-        const childX  = d.target.y - tW/2;
-        return `M${parentX},${d.target.x}H${childX}`;
-      });
+  branches.join(
+    enter => enter.append('path').attr('class','branch'),
+    upd   => upd,
+    exit  => exit.remove()
+  )
+  .attr('d', d => {
+    const pw    = Math.max(80, d.source.data.name.length * charWidth + 20);
+    const startX = d.source.y + pw/2 + stub;         // same trunkX
+    const tw     = Math.max(80, d.target.data.name.length * charWidth + 20);
+    const endX   = d.target.y - tw/2;                 // child left edge
+    return `M${startX},${d.target.x}H${endX}`;
+  });
 
-      // c) Nodes
-      const nodes = chartGroup.selectAll('g.node')
-        .data(root.descendants(), d=>d.data.id);
+  // 4) Draw nodes (left‐aligned boxes & labels)
+  const nodes = chartGroup.selectAll('g.node')
+    .data(root.descendants(), d => d.data.id);
 
-      const nodesEnter = nodes.join(
-        enter=>{
-          const g = enter.append('g')
-            .attr('class','node')
-            .on('click',toggle);
-          g.append('rect');
-          g.append('text');
-          g.append('title');
-          return g;
-        },
-        upd=>upd,
-        exit=>exit.remove()
-      );
+  const nodesEnter = nodes.join(
+    enter => {
+      const g = enter.append('g').attr('class','node').on('click',toggle);
+      g.append('rect');
+      g.append('text');
+      g.append('title');
+      return g;
+    },
+    upd   => upd,
+    exit  => exit.remove()
+  );
 
-      nodesEnter.merge(nodes).each(function(d){
-        const g   = d3.select(this),
-              txt = d.data.name;
+  nodesEnter.merge(nodes)
+    .each(function(d) {
+      const g    = d3.select(this);
+      const txt  = d.data.name;
+      const tw   = Math.max(80, txt.length * charWidth + 20);
 
-        // set text first
-        g.select('text')
-         .attr('class','node-text')
-         .attr('y',0)
-         .text(txt);
+      // Position group so x=0 is the left edge of the box
+      g.attr('transform', `translate(${d.y - tw/2},${d.x})`);
 
-        // measure actual text width
-        const tw  = this.querySelector('text').getBBox().width;
-        const boxW= Math.max(80, tw + 20);
+      // Box
+      g.select('rect')
+        .attr('class', `node-rect gen${d.data.gen}`)
+        .attr('x', 0).attr('y', -12)
+        .attr('width',  tw)
+        .attr('height', 24);
 
-        // position group so (0,0) is top-left of box
-        g.attr('transform',`translate(${d.y-boxW/2},${d.x})`);
+      // Left‐aligned text with 10px padding
+      g.select('text')
+        .attr('class','node-text')
+        .attr('x', 10)
+        .attr('y', 0)
+        .text(txt);
 
-        // draw rect
-        g.select('rect')
-         .attr('class',`node-rect gen${d.data.gen}`)
-         .attr('x',0).attr('y',-12)
-         .attr('width', boxW).attr('height',24);
+      // Tooltip
+      g.select('title')
+        .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : txt);
+    });
+}
 
-        // left-pad text
-        g.select('text')
-         .attr('x',10);
-
-        // tooltip
-        g.select('title')
-         .text(d.data.spouse
-           ? `Spouse(s): ${d.data.spouse}`
-           : txt);
-      });
-    }
 
     // 11) Initial draw
     update();
