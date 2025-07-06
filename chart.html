@@ -6,224 +6,181 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { margin:0; font-family:"Segoe UI",sans-serif; }
-    h1  { text-align:center; margin:12px 0; }
-    #tree_div { width:100%; height:calc(100vh - 50px); overflow:auto; }
-    svg { display:block; width:100%; height:auto; }
-
-    .trunk, .branch {
-      fill:none; stroke:#888; stroke-width:1.5px; stroke-linecap:round;
-    }
-    .node-rect {
-      rx:4; ry:4;
-      filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.15));
-    }
-    .gen1 { fill:#eceff4; stroke:#4c566a; }
-    .gen2 { fill:#e5e9f0; stroke:#3b4252; }
-    .gen3 { fill:#d8dee9; stroke:#2e3440; }
-
-    .node-text {
-      pointer-events:none;
-      text-anchor:start;        /* left-aligned */
-      dominant-baseline:central;
-    }
-    .node { cursor:pointer; }
+    body{margin:0;font-family:"Segoe UI",sans-serif}
+    h1{text-align:center;margin:12px 0}
+    #tree_div{width:100%;height:calc(100vh - 50px);overflow:auto}
+    svg{display:block;width:100%;height:auto}
+    .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
+    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
+    .gen1{fill:#eceff4;stroke:#4c566a}
+    .gen2{fill:#e5e9f0;stroke:#3b4252}
+    .gen3{fill:#d8dee9;stroke:#2e3440}
+    .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
+    .node{cursor:pointer}
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - ver15</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 15-fixed</h1>
   <div id="tree_div">Loading…</div>
 
-  <script>
-  (async function(){
-    // —— fetch & parse Master tab ——
-    const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-    const raw = await fetch(
-      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
-      + `?gid=0`
-      + `&headers=1`
-      + `&tqx=out:json`
-    ).then(r=>r.text());
-    const json = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
-    console.log(raw.slice(0,1000));
-    console.log('→ parsed rows:', JSON.parse(
-      raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')'))
-    ).table.rows.length);
+<script>
+(async function () {
+  // 1 – fetch Master tab
+  const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
+  const raw = await fetch(
+    `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
+    + `?gid=0&headers=1&tqx=out:json`
+  ).then(r => r.text());
+  const json = JSON.parse(raw.slice(raw.indexOf('(') + 1, raw.lastIndexOf(')')));
 
+  const headers = json.table.cols.map(c => c.label);
+  const rows    = json.table.rows;
 
-    const headers = json.table.cols.map(c=>c.label);
-    const rows    = json.table.rows;
+  // 2 – column indexes
+  const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));
+  const nameIdx   = headers.findIndex(h => h.trim() === 'Full Name');
+  const genIdx    = headers.findIndex(h => /^generation$/i.test(h));
+  const spouseIdx = headers.findIndex(h => /spouse/i.test(h));
+  if ([idIdx, nameIdx, genIdx, spouseIdx].some(i => i < 0)) {
+    document.getElementById('tree_div').innerText =
+      '❌ Missing one of: dID, Full Name, Generation or Spouse(s) columns.';
+    return;
+  }
 
-    // —— find our four key columns ——
-    const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
-    const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
-    const genIdx    = headers.findIndex(h=>/^generation$/i.test(h));
-    const spouseIdx = headers.findIndex(h=>/spouse/i.test(h));
-    if ([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)) {
-      document.getElementById('tree_div').innerText =
-        '❌ Missing one of: dID, Full Name, Gen Level or Spouse(s) columns.';
-      return;
-    }
-
-    // —— flatten + filter gens 1–3 ——
-    const flat = rows.map(r=>({
-      id:     r.c[idIdx]?.v||'',
-      name:   r.c[nameIdx]?.v||'',
-      gen:    +r.c[genIdx]?.v,
-      parent: (r.c[idIdx]?.v||'').replace(/\.[^.]+$/,''),
-      spouse: r.c[spouseIdx]?.v||'',
+  // 3 – flatten rows (***self-parent guard restored***)
+  const flat = rows.map(r => {
+    const id   = r.c[idIdx]?.v || '';
+    return {
+      id,
+      name  : r.c[nameIdx]?.v || '',
+      gen   : +r.c[genIdx]?.v,
+      parent: id.includes('.') ? id.replace(/\.[^.]+$/, '') : '',   //  ← fixed
+      spouse: r.c[spouseIdx]?.v || '',
       children:[]
-    })).filter(d=>d.id && d.name && Number.isFinite(d.gen) && d.gen<=3);
-    console.log('flat rows after filter:', flat.length);
+    };
+  }).filter(d => d.id && d.name && Number.isFinite(d.gen) && d.gen <= 3);
 
-    // —— nest byId ——
-    const byId = {};
-    flat.forEach(d=>byId[d.id]=d);
-    flat.forEach(d=>{
-      if (d.parent && byId[d.parent]) byId[d.parent].children.push(d);
-    });
+  // 4 – nest
+  const byId = Object.fromEntries(flat.map(d => [d.id, d]));
+  flat.forEach(d => { if (d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
 
-    const rootData = byId['ALK'];
-    if (!rootData) {
-      document.getElementById('tree_div').innerText =
-        '❌ Root “ALK” not found – check your dID values.';
-      return;
+  const rootData = byId['ALK'];
+  if (!rootData) {
+    document.getElementById('tree_div').innerText =
+      '❌ Root “ALK” not found – check your dID values.';
+    return;
+  }
+
+  /* ---------- layout / drawing (unchanged) ---------- */
+  const charWidth = 7;
+  const maxNameLen = d3.max(flat, d => d.name.length);
+  const hSpacing = Math.max(180, maxNameLen * charWidth + 50);
+  const vSpacing = 40;
+
+  const root = d3.hierarchy(rootData, d => d.children);
+  const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
+
+  root.descendants().forEach(d => {
+    if (d.data.gen === 2 && d.children) {
+      d._children = d.children;
+      d.children = null;
     }
+  });
 
-    // —— spacing metrics ——  
-    const charWidth  = 7;
-    const nameLens  = flat.map(d => (typeof d.name === 'string' ? d.name.length : 0));
-    const maxNameLen = nameLens.length ? d3.max(nameLens) : 0;
-    const hSpacing   = Math.max(180, maxNameLen*charWidth + 50);
-    
-    
-    const vSpacing   = 40;
+  const svg = d3.select('#tree_div').html('').append('svg')
+    .attr('preserveAspectRatio', 'xMinYMin meet');
+  const zoomGroup = svg.append('g');
+  const chartGroup = zoomGroup.append('g');
 
-    // —— build hierarchy (no layout yet) ——
-    const root = d3.hierarchy(rootData, d=>d.children);
-    const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
+  svg.call(d3.zoom().scaleExtent([0.5, 2]).on('zoom', ({ transform }) =>
+    zoomGroup.attr('transform', transform)));
 
-    // —— collapse gen-2 by default ——
-    root.descendants().forEach(d=>{
-      if (d.data.gen===2 && d.children) {
-        d._children = d.children;
-        d.children  = null;
-      }
-    });
-
-    // —— set up empty SVG (we’ll size it in update()) ——
-    const svg = d3.select('#tree_div').html('')
-      .append('svg')
-      .attr('preserveAspectRatio','xMinYMin meet');
-
-    const zoomGroup  = svg.append('g');
-    const chartGroup = zoomGroup.append('g');
-
-    svg.call(d3.zoom()
-      .scaleExtent([0.5,2])
-      .on('zoom', ({transform}) => zoomGroup.attr('transform', transform))
-    );
-
-    // —— click‐to‐toggle for gen-2 ——
-    function toggle(_,d){
-      if (d.data.gen===2){
-        if (d.children)    d._children=d.children, d.children=null;
-        else               d.children=d._children, d._children=null;
-        update();
-      }
+  function toggle(_, d) {
+    if (d.data.gen === 2) {
+      if (d.children) d._children = d.children, d.children = null;
+      else            d.children = d._children, d._children = null;
+      update();
     }
+  }
 
-    // —— the single update() ——  
-    function update(){
-      // 1) layout
-      tree(root);
+  function update() {
+    tree(root);
 
-      // 2) compute extents now that x/y exist
-      const all = root.descendants();
-      const xs  = all.map(d=>d.x), ys=all.map(d=>d.y);
-      const minX = Math.min(...xs),
-            maxX = Math.max(...xs),
-            minY = Math.min(...ys),
-            maxY = Math.max(...ys),
-            margin = 100,
-            W = maxY - minY + margin*2,
-            H = maxX - minX + margin*2;
+    const xs = root.descendants().map(d => d.x);
+    const ys = root.descendants().map(d => d.y);
+    const margin = 100;
+    const W = Math.max(...ys) - Math.min(...ys) + margin * 2;
+    const H = Math.max(...xs) - Math.min(...xs) + margin * 2;
+    svg.attr('viewBox', [0, 0, W, H].join(' '));
+    chartGroup.attr('transform',
+      `translate(${margin - Math.min(...ys)},${margin - Math.min(...xs)})`);
 
-      // 3) resize & recenter
-      svg.attr('viewBox',[0,0,W,H].join(' '));
-      chartGroup.attr('transform',`translate(${margin-minY},${margin-minX})`);
+    const stub = 20;
 
-      const stub = 20;
-
-      // 4) vertical trunks
-      const parents = root.descendants().filter(d=>d.children && d.children.length>0);
-      const trunks = chartGroup.selectAll('path.trunk').data(parents, d=>d.data.id);
-      trunks.join(
-        e=>e.append('path').attr('class','trunk'),
-        u=>u,
-        x=>x.remove()
+    /* trunks */
+    const parents = root.descendants().filter(d => d.children && d.children.length);
+    chartGroup.selectAll('path.trunk')
+      .data(parents, d => d.data.id)
+      .join(
+        enter => enter.append('path').attr('class', 'trunk'),
+        update => update,
+        exit => exit.remove()
       )
-      .attr('d', d=>{
-        const pw = Math.max(80, d.data.name.length*charWidth + 20);
-        const px = d.y + pw/2, tx = px + stub;
-        const ys = d.children.map(c=>c.x),
-              y0 = Math.min(...ys),
-              y1 = Math.max(...ys);
-        return `M${px},${d.x}H${tx}M${tx},${y0}V${y1}`;
+      .attr('d', d => {
+        const boxW = Math.max(80, d.data.name.length * charWidth + 20);
+        const px = d.y + boxW / 2, tx = px + stub;
+        const ys = d.children.map(c => c.x);
+        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-      // 5) horizontal branches
-      const branches = chartGroup.selectAll('path.branch')
-        .data(root.links(), d=>d.target.data.id);
-      branches.join(
-        e=>e.append('path').attr('class','branch'),
-        u=>u,
-        x=>x.remove()
+    /* branches */
+    chartGroup.selectAll('path.branch')
+      .data(root.links(), d => d.target.data.id)
+      .join(
+        enter => enter.append('path').attr('class', 'branch'),
+        update => update,
+        exit => exit.remove()
       )
-      .attr('d', d=>{
-        const pw = Math.max(80, d.source.data.name.length*charWidth + 20),
-              startX = d.source.y + pw/2 + stub,
-              tw = Math.max(80, d.target.data.name.length*charWidth + 20),
-              endX = d.target.y - tw/2;
-        return `M${startX},${d.target.x}H${endX}`;
+      .attr('d', d => {
+        const srcW = Math.max(80, d.source.data.name.length * charWidth + 20);
+        const trgW = Math.max(80, d.target.data.name.length * charWidth + 20);
+        const x1 = d.source.y + srcW / 2 + stub;
+        const x2 = d.target.y - trgW / 2;
+        return `M${x1},${d.target.x}H${x2}`;
       });
 
-      // 6) nodes
-      const nodes = chartGroup.selectAll('g.node')
-        .data(root.descendants(), d=>d.data.id);
-      const nodesEnter = nodes.join(
-        e=>{
-          const g = e.append('g').attr('class','node').on('click',toggle);
+    /* nodes */
+    chartGroup.selectAll('g.node')
+      .data(root.descendants(), d => d.data.id)
+      .join(
+        enter => {
+          const g = enter.append('g').attr('class', 'node').on('click', toggle);
           g.append('rect'); g.append('text'); g.append('title');
           return g;
         },
-        u=>u,
-        x=>x.remove()
-      );
-      nodesEnter.merge(nodes).each(function(d){
-        const g   = d3.select(this),
-              txt = d.data.name,
-              tw  = Math.max(80, txt.length*charWidth + 20);
-
-        g.attr('transform',`translate(${d.y - tw/2},${d.x})`);
+        update => update,
+        exit => exit.remove()
+      )
+      .each(function (d) {
+        const g = d3.select(this);
+        const txt = d.data.name;
+        const boxW = Math.max(80, txt.length * charWidth + 20);
+        g.attr('transform', `translate(${d.y - boxW / 2},${d.x})`);
         g.select('rect')
-         .attr('class',`node-rect gen${d.data.gen}`)
-         .attr('x',0).attr('y',-12)
-         .attr('width',tw).attr('height',24);
+          .attr('class', `node-rect gen${d.data.gen}`)
+          .attr('x', 0).attr('y', -12)
+          .attr('width', boxW).attr('height', 24);
         g.select('text')
-         .attr('class','node-text')
-         .attr('x',10).attr('y',0)
-         .text(txt);
+          .attr('class', 'node-text')
+          .attr('x', 10).attr('y', 0)
+          .text(txt);
         g.select('title')
-         .text(d.data.spouse
-           ? `Spouse(s): ${d.data.spouse}`
-           : txt);
+          .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : txt);
       });
-    }
+  }
 
-    // first draw
-    update();
-  })();
-  </script>
+  update();        // first draw
+})();
+</script>
 </body>
 </html>
