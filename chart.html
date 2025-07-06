@@ -11,8 +11,6 @@
     #tree_div { width:100%; height:calc(100vh - 50px); overflow:auto }
     svg { display:block; width:100%; height:auto }
 
-    /* no longer used: .link */
-
     .trunk,
     .branch {
       fill:none;
@@ -38,29 +36,28 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - ver5</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - ver6</h1>
   <div id="tree_div">Loading…</div>
   <script>
   (async function(){
-    // 1) Load your sheet as JSONP
-    const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-    const sheetGid = '0';
-  
+    // 1) Fetch & parse your Master tab
+    const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
     const raw = await fetch(
       `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
-      + `?sheet=Master`                        // ← your exact tab name
-      + `&gid=${sheetGid}`                     // gid=0 is fine
+      + `?sheet=Master`
       + `&headers=1`
       + `&tqx=out:json`
     ).then(r=>r.text());
-  
-    const json    = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
+
+    const json = JSON.parse(
+      raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')'))
+    );
+    console.log('Loaded rows:', json.table.rows.length);
+
     const headers = json.table.cols.map(c=>c.label);
     const rows    = json.table.rows;
 
-    console.log('Loaded rows:', json.table.rows.length);
-
-    // 2) Find columns
+    // 2) Find our four key columns
     const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
     const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
     const genIdx    = headers.findIndex(h=>/gen\s*level/i.test(h));
@@ -71,171 +68,169 @@
       return;
     }
 
-    // 3) Flatten & filter gens 1–3
+    // 3) Flatten & keep gens 1–3
     const flat = rows.map(r=>{
       return {
         id:     r.c[idIdx]?.v||'',
         name:   r.c[nameIdx]?.v||'',
         gen:    +r.c[genIdx]?.v,
-        parent: (r.c[idIdx]?.v||'').replace(/\.[^.]+$/, ''),
+        parent: (r.c[idIdx]?.v||'').replace(/\.[^.]+$/,''),
         spouse: r.c[spouseIdx]?.v||'',
         children:[]
       };
     }).filter(d=>d.id && d.name && d.gen>=1 && d.gen<=3);
 
     // 4) Nest by ID
-    const byId={};
+    const byId = {};
     flat.forEach(d=>byId[d.id]=d);
     flat.forEach(d=>{
-      if(d.parent && byId[d.parent]) byId[d.parent].children.push(d);
+      if (d.parent && byId[d.parent]) byId[d.parent].children.push(d);
     });
+
     const rootData = byId['ALK'];
-    if(!rootData){
+    if (!rootData) {
       document.getElementById('tree_div').innerText =
         '❌ Root “ALK” not found – check your dID values.';
       return;
     }
 
-    // 5) Build D3 hierarchy & initial layout
-    const vSpacing = 40;
-    const hSpacing = 180;
-    const root     = d3.hierarchy(rootData, d=>d.children);
-    const tree     = d3.tree().nodeSize([vSpacing,hSpacing]);
-    tree(root);
+    // 5) Compute dynamic spacing
+    const charWidth  = 7;
+    const maxNameLen = d3.max(flat, d=>d.name.length);
+    const hSpacing   = Math.max(180, maxNameLen*charWidth + 50);
+    const vSpacing   = 40;
 
-    // 6) Collapse all Gen-2 on load
+    // 6) Build hierarchy (DON’T call tree(root) here)
+    const root = d3.hierarchy(rootData, d=>d.children);
+    const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
+
+    // 7) Collapse all Gen-2 branches
     root.descendants().forEach(d=>{
-      if(d.data.gen===2 && d.children){
+      if (d.data.gen===2 && d.children) {
         d._children = d.children;
         d.children  = null;
       }
     });
 
-    // 7) Compute SVG dimensions
+    // 8) Compute SVG dimensions
     const all = root.descendants();
-    const xs  = all.map(d=>d.x), ys=all.map(d=>d.y);
+    const xs  = all.map(d=>d.x), ys = all.map(d=>d.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
     const minY = Math.min(...ys), maxY = Math.max(...ys);
     const margin = 100;
-    const W = maxY-minY+margin*2, H = maxX-minX+margin*2;
+    const W = maxY - minY + margin*2;
+    const H = maxX - minX + margin*2;
 
-    // 8) Create SVG with viewBox
+    // 9) Create SVG + two‐group zoom pattern
     const svg = d3.select('#tree_div').html('')
       .append('svg')
-      .attr('viewBox',[0,0,W,H].join(' '))
+      .attr('viewBox', [0,0,W,H].join(' '))
       .attr('preserveAspectRatio','xMinYMin meet');
 
-    // two-group for centering + zoom
     const zoomGroup  = svg.append('g');
     const chartGroup = zoomGroup.append('g')
-      .attr('transform',`translate(${margin-minY},${margin-minX})`);
+      .attr('transform', `translate(${margin-minY},${margin-minX})`);
 
     svg.call(d3.zoom()
       .scaleExtent([0.5,2])
-      .on('zoom',({transform})=> zoomGroup.attr('transform',transform))
+      .on('zoom', ({transform}) => zoomGroup.attr('transform', transform))
     );
 
-    // 9) Collapse toggle
+    // 10) Click‐to‐toggle for Gen-2
     function toggle(_,d){
-      if(d.data.gen===2){
-        if(d.children)    d._children=d.children, d.children=null;
-        else              d.children=d._children, d._children=null;
+      if (d.data.gen===2) {
+        if (d.children) d._children=d.children, d.children=null;
+        else            d.children=d._children, d._children=null;
         update();
       }
     }
 
-    // 10) Draw/update
-    function update() {
-  // 1) Re‐run the layout
-  tree(root);
+    // 11) Single update() that does everything
+    function update(){
+      // run layout
+      tree(root);
 
-  const stub = 20;  // length of short horizontal off‐shoot
+      const stub = 20;
 
-  // 2) Draw trunks: one vertical line per parent (with a stub)
-  const trunkData = root.descendants().filter(d => d.children && d.children.length > 0);
-  const trunks = chartGroup.selectAll('path.trunk')
-    .data(trunkData, d => d.data.id);
+      // — a) Draw trunks
+      const trunkData = root.descendants().filter(d=>d.children && d.children.length);
+      const trunks = chartGroup.selectAll('path.trunk')
+        .data(trunkData, d=>d.data.id);
 
-  trunks.join(
-    enter => enter.append('path').attr('class','trunk'),
-    upd   => upd,
-    exit  => exit.remove()
-  )
-  .attr('d', d => {
-    // box width based on charWidth
-    const pw = Math.max(80, d.data.name.length * charWidth + 20);
-    const px = d.y + pw/2;       // parent’s right edge
-    const tx = px + stub;        // start of trunk
-    const ys = d.children.map(c => c.x);
-    const y0 = Math.min(...ys), y1 = Math.max(...ys);
-    // stub out, then full vertical
-    return `M${px},${d.x}H${tx}M${tx},${y0}V${y1}`;
-  });
+      trunks.join(
+        enter => enter.append('path').attr('class','trunk'),
+        upd   => upd,
+        exit  => exit.remove()
+      )
+      .attr('d', d => {
+        const pw = Math.max(80, d.data.name.length*charWidth + 20);
+        const px = d.y + pw/2;
+        const tx = px + stub;
+        const ys = d.children.map(c=>c.x);
+        const y0 = Math.min(...ys), y1 = Math.max(...ys);
+        return `M${px},${d.x}H${tx}M${tx},${y0}V${y1}`;
+      });
 
-  // 3) Draw branches: one horizontal per child
-  const branches = chartGroup.selectAll('path.branch')
-    .data(root.links(), d => d.target.data.id);
+      // — b) Draw branches
+      const branches = chartGroup.selectAll('path.branch')
+        .data(root.links(), d=>d.target.data.id);
 
-  branches.join(
-    enter => enter.append('path').attr('class','branch'),
-    upd   => upd,
-    exit  => exit.remove()
-  )
-  .attr('d', d => {
-    const pw    = Math.max(80, d.source.data.name.length * charWidth + 20);
-    const startX = d.source.y + pw/2 + stub;         // same trunkX
-    const tw     = Math.max(80, d.target.data.name.length * charWidth + 20);
-    const endX   = d.target.y - tw/2;                 // child left edge
-    return `M${startX},${d.target.x}H${endX}`;
-  });
+      branches.join(
+        enter => enter.append('path').attr('class','branch'),
+        upd   => upd,
+        exit  => exit.remove()
+      )
+      .attr('d', d => {
+        const pw     = Math.max(80, d.source.data.name.length*charWidth + 20);
+        const startX = d.source.y + pw/2 + stub;
+        const tw     = Math.max(80, d.target.data.name.length*charWidth + 20);
+        const endX   = d.target.y - tw/2;
+        return `M${startX},${d.target.x}H${endX}`;
+      });
 
-  // 4) Draw nodes (left‐aligned boxes & labels)
-  const nodes = chartGroup.selectAll('g.node')
-    .data(root.descendants(), d => d.data.id);
+      // — c) Draw nodes
+      const nodes = chartGroup.selectAll('g.node')
+        .data(root.descendants(), d=>d.data.id);
 
-  const nodesEnter = nodes.join(
-    enter => {
-      const g = enter.append('g').attr('class','node').on('click',toggle);
-      g.append('rect');
-      g.append('text');
-      g.append('title');
-      return g;
-    },
-    upd   => upd,
-    exit  => exit.remove()
-  );
+      const nodesEnter = nodes.join(
+        enter => {
+          const g = enter.append('g').attr('class','node').on('click',toggle);
+          g.append('rect');
+          g.append('text');
+          g.append('title');
+          return g;
+        },
+        upd   => upd,
+        exit  => exit.remove()
+      );
 
-  nodesEnter.merge(nodes)
-    .each(function(d) {
-      const g    = d3.select(this);
-      const txt  = d.data.name;
-      const tw   = Math.max(80, txt.length * charWidth + 20);
+      nodesEnter.merge(nodes)
+        .each(function(d){
+          const g    = d3.select(this),
+                txt  = d.data.name,
+                tw   = Math.max(80, txt.length*charWidth + 20);
 
-      // Position group so x=0 is the left edge of the box
-      g.attr('transform', `translate(${d.y - tw/2},${d.x})`);
+          // left‐edge at x=0
+          g.attr('transform', `translate(${d.y - tw/2},${d.x})`);
 
-      // Box
-      g.select('rect')
-        .attr('class', `node-rect gen${d.data.gen}`)
-        .attr('x', 0).attr('y', -12)
-        .attr('width',  tw)
-        .attr('height', 24);
+          g.select('rect')
+            .attr('class',`node-rect gen${d.data.gen}`)
+            .attr('x',0).attr('y',-12)
+            .attr('width',tw).attr('height',24);
 
-      // Left‐aligned text with 10px padding
-      g.select('text')
-        .attr('class','node-text')
-        .attr('x', 10)
-        .attr('y', 0)
-        .text(txt);
+          g.select('text')
+            .attr('class','node-text')
+            .attr('x',10).attr('y',0)
+            .text(txt);
 
-      // Tooltip
-      g.select('title')
-        .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : txt);
-    });
-}
+          g.select('title')
+            .text(d.data.spouse
+              ? `Spouse(s): ${d.data.spouse}`
+              : txt);
+        });
+    }
 
-
-    // 11) Initial draw
+    // 12) Kick it off
     update();
   })();
   </script>
