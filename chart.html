@@ -22,7 +22,7 @@
     .gen3 { fill:#d8dee9; stroke:#2e3440; }
     .node-text {
       pointer-events:none;
-      text-anchor:middle;
+      text-anchor:start;         /* left‐aligned */
       dominant-baseline:central;
     }
     .node { cursor:pointer; }
@@ -31,28 +31,28 @@
 <body>
   <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="tree_div">Loading…</div>
-
   <script>
   (async function(){
-    // 1) Fetch Master tab (gid=0) as JSONP
+    // 1) Fetch Master tab as JSONP
     const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
     const sheetGid = '0';
     const raw = await fetch(
-      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
-      + `?gid=${sheetGid}&headers=1&tqx=out:json`
+      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq` +
+      `?gid=${sheetGid}&headers=1&tqx=out:json`
     ).then(r=>r.text());
     const json    = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
     const headers = json.table.cols.map(c=>c.label);
     const rows    = json.table.rows;
 
-    // 2) Detect our columns
+    // 2) Detect columns
     const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
     const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
     const genIdx    = headers.findIndex(h=>/gen\s*level/i.test(h));
     const spouseIdx = headers.findIndex(h=>/spouse/i.test(h));
     if ([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)) {
-      return document.getElementById('tree_div').innerText =
+      document.getElementById('tree_div').innerText =
         '❌ Missing one of: dID, Full Name, Gen Level or Spouse(s) columns.';
+      return;
     }
 
     // 3) Build flat list, filter to gens 1–3
@@ -60,7 +60,7 @@
       const id     = r.c[idIdx]?.v||'';
       const name   = r.c[nameIdx]?.v||'';
       const gen    = +r.c[genIdx]?.v;
-      const parent = id.includes('.') ? id.replace(/\.[^.]+$/,'') : '';
+      const parent = id.includes('.') ? id.replace(/\.[^.]+$/, '') : '';
       const spouse = r.c[spouseIdx]?.v||'';
       return { id,name,gen,parent,spouse,children:[] };
     }).filter(d=>d.id && d.name && d.gen>=1 && d.gen<=3);
@@ -69,122 +69,107 @@
     const byId = {};
     flat.forEach(d=>byId[d.id]=d);
     flat.forEach(d=>{
-      if(d.parent && byId[d.parent]) byId[d.parent].children.push(d);
+      if (d.parent && byId[d.parent]) byId[d.parent].children.push(d);
     });
     const rootData = byId['ALK'];
     if (!rootData) {
-      return document.getElementById('tree_div').innerText =
+      document.getElementById('tree_div').innerText =
         '❌ Root “ALK” not found – check your dID values.';
+      return;
     }
 
-    // 5) Determine dynamic horizontal spacing based on longest name
-    const charWidth = 7;   // approx width per character
-    const maxNameLen = d3.max(flat, d => d.name.length);
-    const hSpacing = Math.max(180, maxNameLen*charWidth + 50);
-    const vSpacing = 40;
+    // 5) Dynamic spacing
+    const charWidth  = 7;
+    const maxNameLen = d3.max(flat, d=>d.name.length);
+    const hSpacing   = Math.max(180, maxNameLen*charWidth + 50);
+    const vSpacing   = 40;
 
-    // 6) Build D3 hierarchy & tree layout with dynamic nodeSize
+    // 6) Build D3 hierarchy and initial tree layout
     const root = d3.hierarchy(rootData, d=>d.children);
     const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
     tree(root);
 
-    // ——— NEW: collapse all Gen-2 nodes on load ———
-    root.descendants().forEach(d => {
-      if (d.data.gen === 2 && d.children) {
+    // 7) Collapse Gen 2 on load
+    root.descendants().forEach(d=>{
+      if (d.data.gen===2 && d.children) {
         d._children = d.children;
         d.children  = null;
       }
     });
 
-    // 7) Compute full SVG extents
+    // 8) Compute SVG size & set up viewBox
     const all = root.descendants();
-    const xs  = all.map(d=>d.x), ys = all.map(d=>d.y);
-    const minX=Math.min(...xs), maxX=Math.max(...xs);
-    const minY=Math.min(...ys), maxY=Math.max(...ys);
+    const xs  = all.map(d=>d.x), ys=all.map(d=>d.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
     const margin = 100;
-    const width  = maxY - minY + margin*2;
-    const height = maxX - minX + margin*2;
+    const W  = maxY - minY + margin*2;
+    const H  = maxX - minX + margin*2;
 
-    // 8) Create a responsive SVG with viewBox
     const svg = d3.select('#tree_div')
       .html('')
       .append('svg')
-      .attr('viewBox', [0,0,width,height].join(' '))
+      .attr('viewBox', [0,0,W,H].join(' '))
       .attr('preserveAspectRatio','xMinYMin meet');
 
-    // Two-group trick: zoomGroup holds zoom transform; chartGroup holds centering
+    // two‐group pattern
     const zoomGroup  = svg.append('g');
     const chartGroup = zoomGroup.append('g')
       .attr('transform', `translate(${margin-minY},${margin-minX})`);
 
-    // 9) Set up zoom + pan
+    // 9) Zoom & pan
     svg.call(d3.zoom()
       .scaleExtent([0.5,2])
       .on('zoom', ({transform}) => zoomGroup.attr('transform', transform))
     );
 
-    // 10) Toggle collapse on Gen-2 click
+    // 10) Toggle collapse on Gen 2 click
     function toggle(_, d){
-      if(d.data.gen===2){
-        if(d.children)    d._children=d.children, d.children=null;
-        else              d.children=d._children, d._children=null;
+      if (d.data.gen===2){
+        if (d.children)    d._children=d.children, d.children=null;
+        else               d.children=d._children, d._children=null;
         update();
       }
     }
 
-    function update() {
-  // 1) Re-run the layout so root.x/root.y are up-to-date
-  tree(root);
+    // 11) Our custom elbow link generator
+    function diagonal(d) {
+      const srcW = Math.max(80, d.source.data.name.length*charWidth + 20);
+      const trgW = Math.max(80, d.target.data.name.length*charWidth + 20);
+      const x1   = d.source.y + srcW/2;
+      const y1   = d.source.x;
+      const x2   = d.target.y - trgW/2;
+      const y2   = d.target.x;
+      const xm   = x1 + (x2 - x1)/2;
+      return `M${x1},${y1}H${xm}V${y2}H${x2}`;
+    }
 
-  // 2) Define diagonal before you use it
-  function diagonal(d) {
-    const srcW = Math.max(80, d.source.data.name.length * charWidth + 20);
-    const trgW = Math.max(80, d.target.data.name.length * charWidth + 20);
+    // 12) The single update() that draws links + left‐aligned nodes
+    function update(){
+      // re-run layout
+      tree(root);
 
-    const x1 = d.source.y + srcW/2;
-    const y1 = d.source.x;
-    const x2 = d.target.y - trgW/2;
-    const y2 = d.target.x;
-    const xm = x1 + (x2 - x1)/2;
+      // LINKS
+      const links = chartGroup.selectAll('path.link')
+        .data(root.links(), d=>d.target.data.id);
 
-    return `M${x1},${y1}H${xm}V${y2}H${x2}`;
-  }
-
-  // 3) Now bind your links using diagonal()
-  const links = chartGroup.selectAll('path.link')
-    .data(root.links(), d => d.target.data.id);
-
-  links.join(
-    enter => enter.append('path')
-                   .attr('class','link')
-                   .attr('d', diagonal),
-    update => update.attr('d', diagonal),
-    exit   => exit.remove()
-  );
-
-  // …then your node binding comes after…
-}
-
-
-
-
-
-
-
-
-
-
-
+      links.join(
+        enter => enter.append('path')
+                       .attr('class','link')
+                       .attr('d', diagonal),
+        update => update.attr('d', diagonal),
+        exit   => exit.remove()
+      );
 
       // NODES
-      const node = chartGroup.selectAll('g.node')
+      const nodes = chartGroup.selectAll('g.node')
         .data(root.descendants(), d=>d.data.id);
 
-      const nodeEnter = node.join(
+      const nodesEnter = nodes.join(
         enter => {
           const g = enter.append('g')
             .attr('class','node')
-            .attr('transform', `translate(${root.y},${root.x})`)
+            // we'll position inside each .each() below
             .on('click', toggle);
           g.append('rect');
           g.append('text');
@@ -195,25 +180,28 @@
         exit   => exit.remove()
       );
 
-      nodeEnter.merge(node)
-        .attr('transform', d=>`translate(${d.y},${d.x})`)
+      nodesEnter.merge(nodes)
         .each(function(d){
-          const g     = d3.select(this),
-                txt   = d.data.name,
-                boxW  = Math.max(80, txt.length*charWidth + 20);
+          const g    = d3.select(this),
+                txt  = d.data.name,
+                boxW = Math.max(80, txt.length*charWidth + 20);
 
+          // Position the group so (0,0) is the top-left of the box:
+          g.attr('transform', `translate(${d.y - boxW/2},${d.x})`);
+
+          // Draw the rect at x=0
           g.select('rect')
             .attr('class', `node-rect gen${d.data.gen}`)
-            .attr('x', -boxW/2)
-            .attr('y', -12)
-            .attr('width',  boxW)
-            .attr('height', 24);
+            .attr('x', 0).attr('y', -12)
+            .attr('width', boxW).attr('height', 24);
 
+          // Left-align text with 10px padding
           g.select('text')
             .attr('class','node-text')
-            .attr('x', 0).attr('y', 0)
+            .attr('x', 10).attr('y', 0)
             .text(txt);
 
+          // Spouse tooltip
           g.select('title')
             .text(d.data.spouse
               ? `Spouse(s): ${d.data.spouse}`
@@ -221,7 +209,7 @@
         });
     }
 
-    // 12) Initial draw
+    // 13) Initial draw (with Gen 2 collapsed)
     update();
   })();
   </script>
