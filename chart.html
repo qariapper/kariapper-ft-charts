@@ -6,43 +6,46 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { margin:0; font-family:"Segoe UI",sans-serif }
-    h1  { text-align:center; margin:12px 0 }
-    #tree_div { width:100%; height:calc(100vh - 50px); overflow:auto }
-    svg { font:12px "Segoe UI",sans-serif; }
+    body { margin:0; font-family:"Segoe UI",sans-serif; }
+    h1  { text-align:center; margin:12px 0; }
+    #tree_div { width:100%; height:calc(100vh - 50px); overflow:auto; }
+    svg { display:block; width:100%; height:auto; }
     .link {
       fill:none; stroke:#888; stroke-width:1.5px; stroke-linecap:round;
     }
     .node-rect {
       rx:4; ry:4;
-      filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
+      filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.15));
     }
     .gen1 { fill:#eceff4; stroke:#4c566a; }
     .gen2 { fill:#e5e9f0; stroke:#3b4252; }
     .gen3 { fill:#d8dee9; stroke:#2e3440; }
     .node-text {
-      pointer-events:none; text-anchor:middle; dominant-baseline:central;
+      pointer-events:none;
+      text-anchor:middle;
+      dominant-baseline:central;
     }
     .node { cursor:pointer; }
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations Y</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="tree_div">Loading…</div>
+
   <script>
   (async function(){
-    // 1) fetch your sheet as JSON
+    // 1) Fetch Master tab (gid=0) as JSONP
     const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
     const sheetGid = '0';
     const raw = await fetch(
       `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq`
       + `?gid=${sheetGid}&headers=1&tqx=out:json`
     ).then(r=>r.text());
-    const json    = JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
+    const json    = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
     const headers = json.table.cols.map(c=>c.label);
     const rows    = json.table.rows;
 
-    // 2) detect columns
+    // 2) Detect our columns
     const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
     const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
     const genIdx    = headers.findIndex(h=>/gen\s*level/i.test(h));
@@ -52,7 +55,7 @@
         '❌ Missing one of: dID, Full Name, Gen Level or Spouse(s) columns.';
     }
 
-    // 3) build flat gen-filtered list
+    // 3) Build flat list, filter to gens 1–3
     const flat = rows.map(r=>{
       const id     = r.c[idIdx]?.v||'';
       const name   = r.c[nameIdx]?.v||'';
@@ -62,11 +65,11 @@
       return { id,name,gen,parent,spouse,children:[] };
     }).filter(d=>d.id && d.name && d.gen>=1 && d.gen<=3);
 
-    // 4) nest by id
-    const byId={};
+    // 4) Nest by ID
+    const byId = {};
     flat.forEach(d=>byId[d.id]=d);
     flat.forEach(d=>{
-      if (d.parent && byId[d.parent]) byId[d.parent].children.push(d);
+      if(d.parent && byId[d.parent]) byId[d.parent].children.push(d);
     });
     const rootData = byId['ALK'];
     if (!rootData) {
@@ -74,69 +77,83 @@
         '❌ Root “ALK” not found – check your dID values.';
     }
 
-    // 5) build hierarchy + tree
+    // 5) Determine dynamic horizontal spacing based on longest name
+    const charWidth = 7;   // approx width per character
+    const maxNameLen = d3.max(flat, d => d.name.length);
+    const hSpacing = Math.max(180, maxNameLen*charWidth + 50);
+    const vSpacing = 40;
+
+    // 6) Build D3 hierarchy & tree layout with dynamic nodeSize
     const root = d3.hierarchy(rootData, d=>d.children);
-    const tree = d3.tree().nodeSize([40,180]);
+    const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
     tree(root);
 
-    // 6) compute size + setup zoom
+    // 7) Compute full SVG extents
     const all = root.descendants();
-    const xs  = all.map(d=>d.x), ys=all.map(d=>d.y);
+    const xs  = all.map(d=>d.x), ys = all.map(d=>d.y);
     const minX=Math.min(...xs), maxX=Math.max(...xs);
     const minY=Math.min(...ys), maxY=Math.max(...ys);
-    const W = maxY-minY+200, H = maxX-minX+200;
+    const margin = 100;
+    const width  = maxY - minY + margin*2;
+    const height = maxX - minX + margin*2;
 
+    // 8) Create a responsive SVG with viewBox
     const svg = d3.select('#tree_div')
       .html('')
       .append('svg')
-      .attr('width', W).attr('height', H);
+      .attr('viewBox', [0,0,width,height].join(' '))
+      .attr('preserveAspectRatio','xMinYMin meet');
 
-    // zoomGroup preserves initial chartGroup transform
+    // Two-group trick: zoomGroup holds zoom transform; chartGroup holds centering
     const zoomGroup  = svg.append('g');
     const chartGroup = zoomGroup.append('g')
-      .attr('transform', `translate(${-minY+100},${-minX+100})`);
+      .attr('transform', `translate(${margin-minY},${margin-minX})`);
 
+    // 9) Set up zoom + pan
     svg.call(d3.zoom()
       .scaleExtent([0.5,2])
       .on('zoom', ({transform}) => zoomGroup.attr('transform', transform))
     );
 
-    // 7) collapse toggle for gen2
+    // 10) Toggle collapse on Gen-2 click
     function toggle(_, d){
-      if (d.data.gen===2){
-        if (d.children)    d._children=d.children, d.children=null;
-        else               d.children=d._children, d._children=null;
+      if(d.data.gen===2){
+        if(d.children)    d._children=d.children, d.children=null;
+        else              d.children=d._children, d._children=null;
         update();
       }
     }
 
-    // 8) update draw
+    // 11) Draw / update routine
     function update(){
       tree(root);
 
-      // links
-      const links = chartGroup.selectAll('path.link')
+      // LINKS
+      const link = chartGroup.selectAll('path.link')
         .data(root.links(), d=>d.target.data.id);
 
-      links.join(
+      link.join(
         enter => enter.append('path')
                        .attr('class','link')
-                       .attr('d', d3.linkHorizontal().x(d=>d.y).y(d=>d.x)),
-        update => update.attr('d', d3.linkHorizontal().x(d=>d.y).y(d=>d.x)),
+                       .attr('d', d3.linkHorizontal()
+                         .x(d=>d.y).y(d=>d.x)
+                       ),
+        update => update.attr('d', d3.linkHorizontal()
+                                   .x(d=>d.y).y(d=>d.x)
+                                 ),
         exit   => exit.remove()
       );
 
-      // nodes
-      const nodes = chartGroup.selectAll('g.node')
+      // NODES
+      const node = chartGroup.selectAll('g.node')
         .data(root.descendants(), d=>d.data.id);
 
-      const nodesEnter = nodes.join(
+      const nodeEnter = node.join(
         enter => {
           const g = enter.append('g')
             .attr('class','node')
-            .attr('transform', d=>`translate(${root.y},${root.x})`)
+            .attr('transform', `translate(${root.y},${root.x})`)
             .on('click', toggle);
-
           g.append('rect');
           g.append('text');
           g.append('title');
@@ -146,18 +163,18 @@
         exit   => exit.remove()
       );
 
-      nodesEnter.merge(nodes)
+      nodeEnter.merge(node)
         .attr('transform', d=>`translate(${d.y},${d.x})`)
         .each(function(d){
-          const g    = d3.select(this),
-                txt  = d.data.name,
-                w    = Math.max(80, txt.length*7 + 20);
+          const g     = d3.select(this),
+                txt   = d.data.name,
+                boxW  = Math.max(80, txt.length*charWidth + 20);
 
           g.select('rect')
             .attr('class', `node-rect gen${d.data.gen}`)
-            .attr('x', -w/2)
+            .attr('x', -boxW/2)
             .attr('y', -12)
-            .attr('width',  w)
+            .attr('width',  boxW)
             .attr('height', 24);
 
           g.select('text')
@@ -172,7 +189,7 @@
         });
     }
 
-    // 9) initial draw
+    // 12) Initial draw
     update();
   })();
   </script>
