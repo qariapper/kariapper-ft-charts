@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
+  <meta charset="utf-8" />
   <title>Kariapper Family Tree – up to 3 generations</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
     body{margin:0;font-family:"Segoe UI",sans-serif}
-    h1{text-align:center;margin:12px 0}
+    h1  {text-align:center;margin:12px 0}
     #tree_div{width:100%;height:calc(100vh - 50px);overflow:auto}
-    svg{display:block;width:100%;height:auto}
+    svg {display:block;width:100%;height:auto}
 
     .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
     .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
@@ -21,177 +21,160 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - 32</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - 33</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
 (async function(){
 
-/* 1 ── fetch & parse ------------------------------------------------------*/
+/* ───────────────────── 1. load data ───────────────────── */
 const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-const raw  = await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`)
-                     .then(r=>r.text());
-const json = JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
-const headers=json.table.cols.map(c=>c.label), rows=json.table.rows;
+const raw = await fetch(
+  `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
+).then(r=>r.text());
+const json    = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
+const headers = json.table.cols.map(c=>c.label);
+const rows    = json.table.rows;
 
-/* 2 ── column indices ----------------------------------------------------*/
-const idIdx=headers.findIndex(h=>/\(dID\)$/.test(h));
-const nameIdx=headers.findIndex(h=>h.trim()==='Full Name');
-const genIdx=headers.findIndex(h=>/^generation$/i.test(h));
-const spouseIdx=headers.findIndex(h=>/spouse/i.test(h));
-if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
-  document.getElementById('tree_div').innerText='❌ required columns missing';return;
+/* columns we need */
+const idIdx     = headers.findIndex(h=>/\(dID\)$/.test(h));
+const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
+const genIdx    = headers.findIndex(h=>/^generation$/i.test(h));
+const spouseIdx = headers.findIndex(h=>/spouse/i.test(h));
+if ([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
+  document.getElementById('tree_div').innerText =
+    '❌ Required columns not found in the sheet.'; return;
 }
 
-/* 3 ── flatten rows ------------------------------------------------------*/
-const flat=rows.map(r=>{
-  const id=r.c[idIdx]?.v||'';
-  return{id,
-    name:r.c[nameIdx]?.v||'',
-    gen:+r.c[genIdx]?.v,
-    parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',
-    spouse:r.c[spouseIdx]?.v||'',
-    children:[]};
-}).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
+/* ───────────────────── 2. flatten rows ─────────────────── */
+const flat = rows.map(r=>{
+  const id = r.c[idIdx]?.v || '';
+  return {
+    id,
+    name  : r.c[nameIdx]?.v || '',
+    gen   : +r.c[genIdx]?.v,
+    parent: id.includes('.') ? id.replace(/\.[^.]+$/,'') : '',
+    spouse: r.c[spouseIdx]?.v || '',
+    children:[]
+  };
+}).filter(d=>d.id && d.name && Number.isFinite(d.gen) && d.gen<=3);
 
-/* 4 ── hierarchy ---------------------------------------------------------*/
+/* ───────────────────── 3. hierarchy ────────────────────── */
 const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
-flat.forEach(d=>{if(d.parent&&byId[d.parent])byId[d.parent].children.push(d);});
+flat.forEach(d=>{ if(d.parent&&byId[d.parent]) byId[d.parent].children.push(d); });
+
 const rootData=byId['ALK'];
-if(!rootData){document.getElementById('tree_div').innerText='❌ root ALK not found';return;}
+if(!rootData){
+  document.getElementById('tree_div').innerText='❌ Root “ALK” not found.';return;
+}
 
-/* 5 ── layout helpers ----------------------------------------------------*/
-const charW=9, hSpacing=Math.max(180,d3.max(flat,d=>d.name.length)*charW+50),
-      vSpacing=40, stub=20, indent=12;
+/* ───────────────────── 4. layout helpers ───────────────── */
+const charW     = 9;
+const hSpacing  = Math.max(180, d3.max(flat,d=>d.name.length)*charW + 50);
+const vSpacing  = 40;
+const stub      = 20;   // length of every back/forward stub
+const indent    = 12;   // gap between a trunk and its box
+const colX      = depth => depth ? depth*hSpacing + stub : stub; // column X
 
-const root=d3.hierarchy(rootData,d=>d.children);
-const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
+const root = d3.hierarchy(rootData,d=>d.children);
+const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
 
+/* collapse gen-2 by default */
 root.descendants().forEach(d=>{
-  if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;}
+  if(d.data.gen===2 && d.children){ d._children=d.children; d.children=null; }
 });
 
-/* 6 ── SVG scaffolding ---------------------------------------------------*/
-const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
-const gZoom=svg.append('g'), gChart=gZoom.append('g');
-svg.call(d3.zoom().scaleExtent([0.5,2]).on('zoom',({transform})=>gZoom.attr('transform',transform)));
+/* ───────────────────── 5. svg scaffold ─────────────────── */
+const svg = d3.select('#tree_div').html('').append('svg')
+              .attr('preserveAspectRatio','xMinYMin meet');
+const gZoom  = svg.append('g');
+const gChart = gZoom.append('g');
+svg.call(d3.zoom().scaleExtent([0.5,2])
+        .on('zoom',({transform})=>gZoom.attr('transform',transform)));
 
 function toggle(_,d){
-  if(d.data.gen===2){d.children? (d._children=d.children,d.children=null):(d.children=d._children,d._children=null);update();}
+  if(d.data.gen===2){
+    d.children ? (d._children=d.children,d.children=null)
+               : (d.children=d._children,d._children=null);
+    update();
+  }
 }
 
-/* ---------------- UPDATE -----------------------------------------------*/
-function colX(depth){return depth? depth*hSpacing+stub : 0;}   // <<< key line
-
-<<<<<<< HEAD
-function update () {
-  tree(root);
-=======
+/* ───────────────────── 6. update/draw ─────────────────── */
 function update(){
   tree(root);
->>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 
-<<<<<<< HEAD
-  const colX = depth => depth ? depth*hSpacing + stub   /* every depth>0 */
-                               : stub;                  /* root column == stub */
-=======
-  const xs=root.descendants().map(d=>d.x),
-        ys=root.descendants().map(d=>colX(d.depth)),
-        M=100;
-  svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,
-                           Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
-  gChart.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
->>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
+  /* viewBox & pan frame */
+  const xs = root.descendants().map(d=>d.x);
+  const ys = root.descendants().map(d=>colX(d.depth));
+  const M  = 100;
+  svg.attr('viewBox',
+    [0,0,
+     Math.max(...ys)-Math.min(...ys)+M*2,
+     Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
+  gChart.attr('transform',
+    `translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-<<<<<<< HEAD
-  /* viewBox … unchanged */
-=======
-  /* trunks */
+  /* 1 ── vertical trunks */
   gChart.selectAll('path.trunk')
-    .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
+    .data(root.descendants().filter(d=>d.children?.length), d=>d.data.id)
     .join(
       enter=>enter.append('path').attr('class','trunk'),
-      update=>update,exit=>exit.remove())
-    .attr('d',d=>{
-      const x=colX(d.depth), ys=d.children.map(c=>c.x);
-      const vert=`M${x},${d3.min(ys)}V${d3.max(ys)}`;
-      const horiz=d.depth? `M${x-stub},${d.x}H${x}` : `M${x},${d.x}H${x+stub}`;
+      update=>update,
+      exit  =>exit.remove()
+    )
+    .attr('d', d=>{
+      const x  = colX(d.depth);
+      const ys = d.children.map(c=>c.x);
+      const vert = `M${x},${d3.min(ys)}V${d3.max(ys)}`;
+      const horiz= d.depth
+                  ? `M${x-stub},${d.x}H${x}`   // back-stub (depth>0)
+                  : `M0,${d.x}H${x}`;          // forward stub for root
       return (horiz+vert).replace(/\s+/g,'');
     });
->>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
 
-<<<<<<< HEAD
-  /* 1 ── vertical trunks + back-stubs */
-  gChart.selectAll('path.trunk')
-    /* … join unchanged … */
-    .attr('d', d=>{
-      const x = colX(d.depth);            // <-- new rule
-      const ys=d.children.map(c=>c.x);
-      const V = `M${x},${d3.min(ys)}V${d3.max(ys)}`;
-      const H = d.depth
-               ? `M${x-stub},${d.x}H${x}`   // aligns back-stub flush
-               : `M0,${d.x}H${x}`;          // root forward-stub starts at 0
-      return (H+V).replace(/\s+/g,'');
-    });
-=======
-  /* branches */
-  gChart.selectAll('path.branch')
-    .data(root.links(),d=>d.target.data.id)
-    .join(
-      enter=>enter.append('path').attr('class','branch'),
-      update=>update,exit=>exit.remove())
-    .attr('d',d=>{
-      const start=colX(d.source.depth)+(d.source.depth?0:stub); // root starts after its forward stub
-      return `M${start},${d.target.x}H${colX(d.target.depth)}`;
-    });
->>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
-
-<<<<<<< HEAD
   /* 2 ── horizontal branches */
   gChart.selectAll('path.branch')
-    /* … join unchanged … */
-    .attr('d',d=>{
-      const start = d.source.depth ? colX(d.source.depth)
-                                   : colX(0);            // root branch starts at 0
-      return `M${start},${d.target.x}H${colX(d.target.depth)}`;
-    });
-=======
-  /* nodes */
-  gChart.selectAll('g.node')
-    .data(root.descendants(),d=>d.data.id)
+    .data(root.links(), d=>d.target.data.id)
     .join(
-      enter=>{const g=enter.append('g').attr('class','node').on('click',toggle);
-              g.append('rect');g.append('text');g.append('title');return g;},
-      update=>update,exit=>exit.remove())
-    .each(function(d){
-      const g=d3.select(this),txt=d.data.name,w=Math.max(80,txt.length*charW+20);
-      const x=colX(d.depth)+(d.depth?indent:0);
-      g.attr('transform',`translate(${x},${d.x})`);
-      g.select('rect').attr('class',`node-rect gen${d.data.gen}`)
-        .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
-      g.select('text').attr('class','node-text').attr('x',10).attr('y',0).text(txt);
-      g.select('title').text(d.data.spouse?`Spouse(s): ${d.data.spouse}`:txt);
-    });
-}
->>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
+      enter=>enter.append('path').attr('class','branch'),
+      update=>update,
+      exit  =>exit.remove()
+    )
+    .attr('d', d=>`M${colX(d.source.depth)},${d.target.x}H${colX(d.target.depth)}`);
 
-<<<<<<< HEAD
   /* 3 ── nodes */
   gChart.selectAll('g.node')
-    /* … join unchanged … */
+    .data(root.descendants(), d=>d.data.id)
+    .join(
+      enter=>{
+        const g=enter.append('g').attr('class','node').on('click',toggle);
+        g.append('rect'); g.append('text'); g.append('title'); return g;
+      },
+      update=>update,
+      exit  =>exit.remove()
+    )
     .each(function(d){
-      /* … unchanged … */
-      const x = d.depth ? colX(d.depth)+indent : 0;     // root sits at 0
+      const g   = d3.select(this);
+      const txt = d.data.name;
+      const w   = Math.max(80, txt.length*charW + 20);
+      const x   = colX(d.depth) + indent;
+
       g.attr('transform',`translate(${x},${d.x})`);
-      /* … rest unchanged … */
+      g.select('rect')
+        .attr('class',`node-rect gen${d.data.gen}`)
+        .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
+      g.select('text')
+        .attr('class','node-text')
+        .attr('x',10).attr('y',0)
+        .text(txt);
+      g.select('title').text(
+        d.data.spouse ? `Spouse(s): ${d.data.spouse}` : txt
+      );
     });
 }
 
-
-  update();                              // first draw
-=======
-update();                                    // initial draw
->>>>>>> 5e3f9d8600cd712b739b0ba6a4fe843299eb6f3c
+update();   /* first draw */
 })();
 </script>
 </body>
