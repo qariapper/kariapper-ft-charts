@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 21</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 22</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -111,21 +111,22 @@ function update () {
   const stub   = 20;                // short horizontal out of every trunk
   const colX   = d => d.depth * hSpacing;   // left column per generation
 
-  /* ────────────── 1. vertical trunks ────────────── */
-  chartGroup.selectAll('path.trunk')
-    .data(root.descendants().filter(d => d.children && d.children.length),
-          d => d.data.id)
-    .join(
-      enter => enter.append('path').attr('class', 'trunk'),
-      update => update,
-      exit   => exit.remove()
-    )
-    .attr('d', d => {
-      const x  = colX(d);           // fixed column for this generation
-      const tx = x + stub;          // trunk begins after stub
-      const ys = d.children.map(c => c.x);
-      return `M${x},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-    });
+/* ────────────── 1. vertical trunks ────────────── */
+chartGroup.selectAll('path.trunk')
+  .data(root.descendants().filter(d => d.children && d.children.length),
+        d => d.data.id)
+  .join(
+    enter => enter.append('path').attr('class', 'trunk'),
+    update => update,
+    exit   => exit.remove()
+  )
+  .attr('d', d => {
+    const x  = colX(d) + stub;         // ← fixed
+    const ys = d.children.map(c => c.x);
+    return `M${x - stub},${d.x}H${x}
+            M${x},${d3.min(ys)}V${d3.max(ys)}`.replace(/\s+/g,'');
+  });
+
 
   /* ────────────── 2. horizontal branches ────────────── */
   chartGroup.selectAll('path.branch')
