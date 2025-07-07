@@ -39,7 +39,7 @@
   
 
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 25-tooltip12</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 25-tooltip13</h1>
   <div id="tree_div">Loading…</div>
 console.log("Spouse column index:", spouseIdx, headers[spouseIdx]);
 <script>
@@ -71,6 +71,7 @@ console.log("Spouse column index:", spouseIdx, headers[spouseIdx]);
   }).filter(d => d.id && d.name && Number.isFinite(d.gen) && d.gen <= 3);
 
   const byId = Object.fromEntries(flat.map(d => [d.id, d]));
+  if (id === "ALK.1") console.log("Test spouse:", r.c[spouseIdx]?.v);
   flat.forEach(d => { if (d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
   const rootData = byId['ALK'];
   if (!rootData) {
