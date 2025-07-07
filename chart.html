@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"/>
 <title>Kariapper Family Tree – up to 3 generations</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
   body{margin:0;font-family:"Segoe UI",sans-serif}
@@ -20,51 +20,54 @@
 </style>
 </head>
 <body>
-<h1>Kariapper Family Tree – up to 3 generations – ver 23</h1>
+<h1>Kariapper Family Tree – up to 3 generations – ver 30</h1>
 <div id="tree_div">Loading…</div>
 
 <script>
 (async function(){
 
-/* 1 ── fetch the sheet ───────────────────────────────────────────────── */
+/* ───────────────────── 1. fetch sheet ───────────────────── */
 const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-const raw=await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`)
-                .then(r=>r.text());
-const json=JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
-const headers=json.table.cols.map(c=>c.label), rows=json.table.rows;
+const raw  = await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`)
+                   .then(r=>r.text());
+const json = JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
+const headers=json.table.cols.map(c=>c.label);
+const rows   =json.table.rows;
 
-const idIdx=headers.findIndex(h=>/\(dID\)$/.test(h)),
-      nameIdx=headers.findIndex(h=>h.trim()==='Full Name'),
-      genIdx=headers.findIndex(h=>/^generation$/i.test(h)),
-      spouseIdx=headers.findIndex(h=>/spouse/i.test(h));
+/* columns */
+const idIdx=headers.findIndex(h=>/\(dID\)$/.test(h));
+const nameIdx=headers.findIndex(h=>h.trim()==='Full Name');
+const genIdx=headers.findIndex(h=>/^generation$/i.test(h));
+const spouseIdx=headers.findIndex(h=>/spouse/i.test(h));
 if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
   document.getElementById('tree_div').textContent='❌ missing columns';return;
 }
 
+/* ───────────────────── 2. flat rows ─────────────────────── */
 const flat=rows.map(r=>{
   const id=r.c[idIdx]?.v||'';
   return{
     id,
-    name:r.c[nameIdx]?.v||'',
-    gen:+r.c[genIdx]?.v,
+    name  :r.c[nameIdx]?.v||'',
+    gen   :+r.c[genIdx]?.v,
     parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',
     spouse:r.c[spouseIdx]?.v||'',
     children:[]
   };
 }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
 
+/* ───────────────────── 3. hierarchy ─────────────────────── */
 const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
 flat.forEach(d=>{if(d.parent&&byId[d.parent])byId[d.parent].children.push(d);});
 const rootData=byId['ALK'];
 if(!rootData){document.getElementById('tree_div').textContent='❌ root ALK not found';return;}
 
-/* 2 ── layout helpers ───────────────────────────────────────────────── */
+/* ───────────────────── 4. layout helpers ────────────────── */
 const charW=9,
-      maxName=d3.max(flat,d=>d.name.length),
-      hSpacing=Math.max(180,maxName*charW+50),
+      hSpacing=Math.max(180,d3.max(flat,d=>d.name.length)*charW+50),
       vSpacing=40,
-      stub=20,
-      indent=12;
+      stub    =20,
+      indent  =12;
 
 const root=d3.hierarchy(rootData,d=>d.children);
 const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
@@ -73,9 +76,9 @@ root.descendants().forEach(d=>{
   if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;}
 });
 
-/* 3 ── SVG scaffold ─────────────────────────────────────────────────── */
+/* SVG scaffold */
 const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
-const gZoom=svg.append('g'), g=gZoom.append('g');
+const gZoom=svg.append('g'),g=gZoom.append('g');
 svg.call(d3.zoom().scaleExtent([0.5,2]).on('zoom',({transform})=>gZoom.attr('transform',transform)));
 
 function toggle(_,d){
@@ -85,89 +88,94 @@ function toggle(_,d){
   }
 }
 
-/* 4 ── draw / update ────────────────────────────────────────────────── */
+/* ──────────────────── 5. UPDATE draw ───────────────────── */
 function update(){
 
   tree(root);
 
-  /* 4-A ─ global column where *every* gen-3 trunk must sit -------------- */
+  /* (a) global GEN-3 trunk column */
   const alignedX = d3.max(
-    root.descendants().filter(d=>d.data.gen===2 && d.children),  /* only open gen-2s */
-    d=>{
-      const pw=Math.max(80,d.data.name.length*charW+20);
-      return d.y + pw/2 + stub;         /* its own trunk X (right end of stub) */
-    });
+      root.descendants().filter(d=>d.depth===1),   // every GEN-2 node
+      d => {
+        const w=Math.max(80,d.data.name.length*charW+20);
+        return d.y + w/2 + stub;                  // its trunk position
+      });
 
   /* viewBox */
   const xs=root.descendants().map(d=>d.x),
-        ys=root.descendants().map(d=>d.y),
+        ys=root.descendants().map(d=>d.y).concat(alignedX),
         M=100;
-  svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,
-                           Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
+  svg.attr('viewBox',[0,0,
+      Math.max(...ys)-Math.min(...ys)+M*2,
+      Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
   g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-  /* 4-B ─ vertical trunks (only nodes *with* children) ------------------ */
+  /* (b) vertical trunks (only open nodes) */
   g.selectAll('path.trunk')
-   .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
-   .join(
-     enter=>enter.append('path').attr('class','trunk'),
-     update=>update,
-     exit  =>exit.remove())
-   .attr('d',d=>{
-     const pw=Math.max(80,d.data.name.length*charW+20),
-           px=d.y+pw/2,
-           tx=d.data.gen===2?alignedX:px+stub,     /* shift only gen-2 parents */
-           ys=d.children.map(c=>c.x);
-     return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-   });
+    .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
+    .join(
+      enter=>enter.append('path').attr('class','trunk'),
+      update=>update, exit=>exit.remove())
+    .attr('d',d=>{
+      const w=Math.max(80,d.data.name.length*charW+20),
+            px=d.y + w/2,
+            ys=d.children.map(c=>c.x);
+      return `M${px},${d.x}H${px+stub}
+              M${px+stub},${d3.min(ys)}V${d3.max(ys)}`.replace(/\s+/g,'');
+    });
 
-  /* 4-C ─ horizontal branches ----------------------------------------- */
+  /* (c) right-hand branches */
   g.selectAll('path.branch')
-   .data(root.links(),d=>d.target.data.id)
-   .join(
-     enter=>enter.append('path').attr('class','branch'),
-     update=>update,
-     exit  =>exit.remove())
-   .attr('d',d=>{
-     /* parent trunk (already aligned if it is gen-2) */
-     const srcW=Math.max(80,d.source.data.name.length*charW+20);
-     const parentX=d.source.y+srcW/2+stub;
+    .data(root.links(),d=>d.target.data.id)
+    .join(
+      enter=>enter.append('path').attr('class','branch'),
+      update=>update, exit=>exit.remove())
+    .attr('d',d=>{
+      const srcW = Math.max(80,d.source.data.name.length*charW+20);
+      const parentX = d.source.y + srcW/2 + stub;
 
-     /* does the *child* have visible kids?  (draw long if so) */
-     const openKids = d.target.children && d.target.children.length;
+      /* does the target have (open) children? */
+      const hasKids = d.target.children && d.target.children.length;
 
-     const endX = openKids ? alignedX : parentX+indent;
-     return `M${parentX},${d.target.x}H${endX}`;
-   });
+      /* if target is a GEN-3 leaf use alignedX directly,
+         else (deep children) keep original logic              */
+      const endX = hasKids ? alignedX : parentX + (d.target.depth===2 ? 0 : indent);
 
-  /* 4-D ─ node groups --------------------------------------------------- */
+      return `M${parentX},${d.target.x}H${endX}`;
+    });
+
+  /* (d) node boxes */
   g.selectAll('g.node')
-   .data(root.descendants(),d=>d.data.id)
-   .join(
-     enter=>{const n=enter.append('g').attr('class','node').on('click',toggle);
-             n.append('rect');n.append('text');n.append('title');return n;},
-     update=>update,
-     exit  =>exit.remove())
-   .each(function(d){
-     const n=d3.select(this),
-           txt=d.data.name,
-           w =Math.max(80,txt.length*charW+20);
+    .data(root.descendants(),d=>d.data.id)
+    .join(
+      enter=>{const n=enter.append('g').attr('class','node').on('click',toggle);
+              n.append('rect');n.append('text');n.append('title');return n;},
+      update=>update, exit=>exit.remove())
+    .each(function(d){
+      const n=d3.select(this),
+            txt=d.data.name,
+            w =Math.max(80,txt.length*charW+20);
 
-     const parentX = d.parent
-       ? ( d.parent.data.gen===2 ? alignedX   /* parent trunk already aligned */
-                                 : d.parent.y+Math.max(80,d.parent.data.name.length*charW+20)/2+stub )
-       : ( d.y - w/2 );                        /* root centred */
+      let boxX;
+      if(!d.parent) {                 /* root */
+        boxX = d.y - w/2;
+      }else if(d.depth===2){          /* GEN-3 leaf: flush with trunk */
+        boxX = alignedX;
+      }else{                          /* GEN-2 and deeper internal */
+        const pW=Math.max(80,d.parent.data.name.length*charW+20);
+        boxX = d.parent.y + pW/2 + stub + indent;
+      }
 
-     n.attr('transform',`translate(${parentX+indent},${d.x})`);
-     n.select('rect')
-       .attr('class',`node-rect gen${d.data.gen}`)
-       .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
-     n.select('text').attr('class','node-text').attr('x',10).attr('y',0).text(txt);
-     n.select('title').text(d.data.spouse?`Spouse(s): ${d.data.spouse}`:txt);
-   });
+      n.attr('transform',`translate(${boxX},${d.x})`);
+      n.select('rect')
+        .attr('class',`node-rect gen${d.data.gen}`)
+        .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
+      n.select('text').attr('class','node-text').attr('x',10).attr('y',0).text(txt);
+      n.select('title').text(d.data.spouse?`Spouse(s): ${d.data.spouse}`:txt);
+    });
 }
 
-update();   // initial draw
+update();   /* first draw */
 })();
 </script>
 </body>
