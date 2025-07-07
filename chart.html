@@ -24,12 +24,11 @@
     .gen3 { fill: #d8dee9; stroke: #2e3440; }
 
     .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
-    .toggle-text { font-size: 14px; pointer-events: none; fill: #444; }
     .node { cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 23</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 24-clean</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -100,7 +99,7 @@
     tree(root);
 
     const alignedX = d3.max(
-      root.descendants().filter(d => d.depth === 1),
+      root.descendants().filter(d => d.depth === 1 && (d.children || d._children)),
       d => d.y + Math.max(80, d.data.name.length * charW + 20) / 2 + stub
     );
 
@@ -119,9 +118,9 @@
       )
       .attr('d', d => {
         const pw = Math.max(80, d.data.name.length * charW + 20),
-          px = d.y + pw / 2,
-          tx = d.depth === 1 ? alignedX : px + stub,
-          ys = d.children.map(c => c.x);
+              px = d.y + pw / 2,
+              tx = d.depth === 1 ? alignedX : px + stub,
+              ys = d.children.map(c => c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
@@ -160,11 +159,9 @@
               txt = d.data.name,
               w = Math.max(80, txt.length * charW + 20);
 
-        let baseX;
-        if (d.depth === 0) baseX = d.y - w / 2;
-        else if (d.depth === 1) baseX = alignedX;
-        else if (d.depth === 2) baseX = alignedX + stub;
-        else baseX = d.parent.y + Math.max(80, d.parent.data.name.length * charW + 20) / 2 + stub;
+        const baseX = d.parent
+          ? (d.parent.depth === 1 ? alignedX : d.parent.y + Math.max(80, d.parent.data.name.length * charW + 20) / 2 + stub)
+          : d.y - w / 2;
 
         n.attr('transform', `translate(${baseX + indent},${d.x})`);
         n.select('rect')
@@ -172,21 +169,8 @@
           .attr('x', 0).attr('y', -12).attr('width', w).attr('height', 24);
         n.select('text')
           .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(txt);
-        let t = `Name: ${d.data.name}`;
-        if (d.data.spouse) t += `\nSpouse(s): ${d.data.spouse}`;
-        t += `\nGeneration: ${d.data.gen}`;
-        n.select('title').text(t);
-
-        n.selectAll('text.toggle-text').remove();
-        if (d.data.gen === 2) {
-          n.append("text")
-           .attr("class", "toggle-text")
-           .attr("x", w - 10)
-           .attr("y", 0)
-           .attr("text-anchor", "middle")
-           .attr("alignment-baseline", "central")
-           .text(d.children ? '−' : '+');
-        }
+        n.select('title')
+          .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : txt);
       });
   }
 
