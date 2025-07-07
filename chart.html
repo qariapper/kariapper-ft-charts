@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – DEBUG</title>
+  <title>Kariapper Family Tree – Export + Toggle</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
     body { margin: 0; font-family: "Segoe UI", sans-serif; }
     h1 { text-align: center; margin: 12px 0; }
-    #tree_div { width: 100%; height: calc(100vh - 50px); overflow: auto; }
+    #controls { text-align: center; margin: 10px; }
+    #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
     svg { display: block; width: 100%; height: auto; }
 
     .trunk, .branch {
@@ -37,7 +38,13 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – DEBUG</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - EX</h1>
+  <div id="controls">
+    <button onclick="toggleGen3()">Toggle Gen-3</button>
+    <button onclick="downloadPNG()">Download PNG</button>
+    <button onclick="downloadSVG()">Download SVG</button>
+    <button onclick="window.print()">Print</button>
+  </div>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -52,10 +59,6 @@
   const nameIdx   = headers.findIndex(h => h.trim() === 'Full Name');
   const genIdx    = headers.findIndex(h => /^generation$/i.test(h));
   const spouseIdx = headers.findIndex(h => h.trim().toLowerCase().startsWith('spouse'));
-
-  console.log("Headers:", headers);
-  console.log("Spouse column index:", spouseIdx, headers[spouseIdx]);
-
   if ([idIdx, nameIdx, genIdx, spouseIdx].some(i => i < 0)) {
     document.getElementById('tree_div').textContent = '❌ missing columns';
     return;
@@ -66,9 +69,6 @@
     const name = r.c[nameIdx]?.v || '';
     const gen = +r.c[genIdx]?.v;
     const spouse = r.c[spouseIdx]?.v || '';
-
-    console.log(`[${id}] "${name}" – Spouse:`, spouse);
-
     return {
       id,
       name,
@@ -97,6 +97,7 @@
   const root = d3.hierarchy(rootData, d => d.children);
   const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
 
+  // collapse GEN-2 initially
   root.descendants().forEach(d => {
     if (d.data.gen === 2 && d.children) {
       d._children = d.children;
@@ -195,17 +196,67 @@
           .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(txt);
 
         n.on('mouseover', function(event) {
-            const label = d.data.spouse ? `Spouse(s): ${d.data.spouse}` : "Spouse(s): none";
-            tooltip
-              .text(label)
-              .attr('x', baseX + indent + 5)
-              .attr('y', d.x - 18)
-              .style('display', 'block');
+          const label = d.data.spouse ? `Spouse(s): ${d.data.spouse}` : "Spouse(s): none";
+          tooltip
+            .text(label)
+            .attr('x', baseX + indent + 5)
+            .attr('y', d.x - 18)
+            .style('display', 'block');
         }).on('mouseout', () => tooltip.style('display', 'none'));
       });
   }
 
   update();
+
+  // Toggle Gen-3 button logic
+  let collapsed = true;
+  window.toggleGen3 = function () {
+    root.descendants().forEach(d => {
+      if (d.data.gen === 2) {
+        if (collapsed && d._children) {
+          d.children = d._children; d._children = null;
+        } else if (!collapsed && d.children) {
+          d._children = d.children; d.children = null;
+        }
+      }
+    });
+    collapsed = !collapsed;
+    update();
+  };
+
+  // PNG Export
+  window.downloadPNG = function () {
+    const svgNode = svg.node();
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svgNode);
+    const canvas = document.createElement("canvas");
+    const bbox = svgNode.getBBox();
+    canvas.width = bbox.width + 200;
+    canvas.height = bbox.height + 200;
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.onload = function () {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 100, 100);
+      const png = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = "kariapper_tree.png";
+      link.href = png;
+      link.click();
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+  };
+
+  // SVG Export
+  window.downloadSVG = function () {
+    const svgData = new XMLSerializer().serializeToString(svg.node());
+    const blob = new Blob([svgData], {type: "image/svg+xml;charset=utf-8"});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "kariapper_tree.svg";
+    link.click();
+  };
 })();
 </script>
 </body>
