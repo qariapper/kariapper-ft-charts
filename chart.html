@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – up to 3 generations</title>
+  <title>Kariapper Family Tree – DEBUG</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -36,12 +36,10 @@
     }
   </style>
 </head>
-  
-
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 25-tooltip13</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – DEBUG</h1>
   <div id="tree_div">Loading…</div>
-console.log("Spouse column index:", spouseIdx, headers[spouseIdx]);
+
 <script>
 (async function () {
   const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
@@ -50,32 +48,43 @@ console.log("Spouse column index:", spouseIdx, headers[spouseIdx]);
   const headers = json.table.cols.map(c => c.label);
   const rows = json.table.rows;
 
-  const idIdx = headers.findIndex(h => /\(dID\)$/.test(h));
-  const nameIdx = headers.findIndex(h => h.trim() === 'Full Name');
-  const genIdx = headers.findIndex(h => /^generation$/i.test(h));
-  const spouseIdx = headers.findIndex(h => /spouse/i.test(h));
+  const idIdx     = headers.findIndex(h => /\(dID\)$/i.test(h));
+  const nameIdx   = headers.findIndex(h => h.trim() === 'Full Name');
+  const genIdx    = headers.findIndex(h => /^generation$/i.test(h));
+  const spouseIdx = headers.findIndex(h => h.trim().toLowerCase().startsWith('spouse'));
+
+  console.log("Headers:", headers);
+  console.log("Spouse column index:", spouseIdx, headers[spouseIdx]);
+
   if ([idIdx, nameIdx, genIdx, spouseIdx].some(i => i < 0)) {
-    document.getElementById('tree_div').textContent = '❌ missing columns'; return;
+    document.getElementById('tree_div').textContent = '❌ missing columns';
+    return;
   }
 
   const flat = rows.map(r => {
     const id = r.c[idIdx]?.v || '';
+    const name = r.c[nameIdx]?.v || '';
+    const gen = +r.c[genIdx]?.v;
+    const spouse = r.c[spouseIdx]?.v || '';
+
+    console.log(`[${id}] "${name}" – Spouse:`, spouse);
+
     return {
       id,
-      name: r.c[nameIdx]?.v || '',
-      gen: +r.c[genIdx]?.v,
+      name,
+      gen,
       parent: id.includes('.') ? id.replace(/\.[^.]+$/, '') : '',
-      spouse: r.c[spouseIdx]?.v || '',
+      spouse,
       children: []
     };
   }).filter(d => d.id && d.name && Number.isFinite(d.gen) && d.gen <= 3);
 
   const byId = Object.fromEntries(flat.map(d => [d.id, d]));
-  if (id === "ALK.1") console.log("Test spouse:", r.c[spouseIdx]?.v);
   flat.forEach(d => { if (d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
   const rootData = byId['ALK'];
   if (!rootData) {
-    document.getElementById('tree_div').textContent = '❌ root ALK not found'; return;
+    document.getElementById('tree_div').textContent = '❌ root ALK not found';
+    return;
   }
 
   const charW = 9;
@@ -186,14 +195,13 @@ console.log("Spouse column index:", spouseIdx, headers[spouseIdx]);
           .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(txt);
 
         n.on('mouseover', function(event) {
-            if (!d.data.spouse) return;
+            const label = d.data.spouse ? `Spouse(s): ${d.data.spouse}` : "Spouse(s): none";
             tooltip
-              .text(`Spouse(s): ${d.data.spouse}`)
+              .text(label)
               .attr('x', baseX + indent + 5)
               .attr('y', d.x - 18)
               .style('display', 'block');
-          })
-         .on('mouseout', () => tooltip.style('display', 'none'));
+        }).on('mouseout', () => tooltip.style('display', 'none'));
       });
   }
 
