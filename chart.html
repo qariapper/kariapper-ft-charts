@@ -6,192 +6,191 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body{margin:0;font-family:"Segoe UI",sans-serif}
-    h1{text-align:center;margin:12px 0}
-    #tree_div{width:100%;height:calc(100vh - 50px);overflow:auto}
-    svg{display:block;width:100%;height:auto}
+    body { margin: 0; font-family: "Segoe UI", sans-serif; }
+    h1 { text-align: center; margin: 12px 0; }
+    #tree_div { width: 100%; height: calc(100vh - 50px); overflow: auto; }
+    svg { display: block; width: 100%; height: auto; }
 
-    .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
-    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
-    .gen1{fill:#eceff4;stroke:#4c566a}
-    .gen2{fill:#e5e9f0;stroke:#3b4252}
-    .gen3{fill:#d8dee9;stroke:#2e3440}
+    .trunk, .branch {
+      fill: none;
+      stroke: #888;
+      stroke-width: 1.5px;
+      stroke-linecap: round;
+    }
 
-    .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
-    .node{cursor:pointer}
+    .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
+    .gen1 { fill: #eceff4; stroke: #4c566a; }
+    .gen2 { fill: #e5e9f0; stroke: #3b4252; }
+    .gen3 { fill: #d8dee9; stroke: #2e3440; }
+
+    .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
+    .toggle-text { font-size: 14px; pointer-events: none; fill: #444; }
+    .node { cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations – ver 22-fixed</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – ver 23</h1>
   <div id="tree_div">Loading…</div>
 
 <script>
 (async function () {
-
-  /* ── 1. fetch Google-Sheet data ─────────────────────────────────────── */
   const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-  const raw  = await fetch(
-      `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
-    ).then(r => r.text());
-  const json = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
+  const raw = await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`).then(r => r.text());
+  const json = JSON.parse(raw.slice(raw.indexOf('(') + 1, raw.lastIndexOf(')')));
   const headers = json.table.cols.map(c => c.label);
-  const rows    = json.table.rows;
+  const rows = json.table.rows;
 
-  /* ── 2. column indices ──────────────────────────────────────────────── */
-  const idIdx     = headers.findIndex(h => /\(dID\)$/.test(h));
-  const nameIdx   = headers.findIndex(h => h.trim() === 'Full Name');
-  const genIdx    = headers.findIndex(h => /^generation$/i.test(h));
+  const idIdx = headers.findIndex(h => /\(dID\)$/.test(h));
+  const nameIdx = headers.findIndex(h => h.trim() === 'Full Name');
+  const genIdx = headers.findIndex(h => /^generation$/i.test(h));
   const spouseIdx = headers.findIndex(h => /spouse/i.test(h));
-  if([idIdx,nameIdx,genIdx,spouseIdx].some(i => i < 0)){
+  if ([idIdx, nameIdx, genIdx, spouseIdx].some(i => i < 0)) {
     document.getElementById('tree_div').textContent = '❌ missing columns'; return;
   }
 
-  /* ── 3. flat list of nodes ──────────────────────────────────────────── */
   const flat = rows.map(r => {
-      const id = r.c[idIdx]?.v || '';
-      return {
-        id,
-        name  : r.c[nameIdx]?.v || '',
-        gen   : +r.c[genIdx]?.v,
-        parent: id.includes('.') ? id.replace(/\.[^.]+$/, '') : '',
-        spouse: r.c[spouseIdx]?.v || '',
-        children:[]
-      };
-    })
-    .filter(d => d.id && d.name && Number.isFinite(d.gen) && d.gen <= 3);
+    const id = r.c[idIdx]?.v || '';
+    return {
+      id,
+      name: r.c[nameIdx]?.v || '',
+      gen: +r.c[genIdx]?.v,
+      parent: id.includes('.') ? id.replace(/\.[^.]+$/, '') : '',
+      spouse: r.c[spouseIdx]?.v || '',
+      children: []
+    };
+  }).filter(d => d.id && d.name && Number.isFinite(d.gen) && d.gen <= 3);
 
-  /* ── 4. hierarchy build ─────────────────────────────────────────────── */
   const byId = Object.fromEntries(flat.map(d => [d.id, d]));
-  flat.forEach(d => { if(d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
+  flat.forEach(d => { if (d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
   const rootData = byId['ALK'];
-  if(!rootData){ document.getElementById('tree_div').textContent='❌ root ALK not found'; return; }
+  if (!rootData) {
+    document.getElementById('tree_div').textContent = '❌ root ALK not found'; return;
+  }
 
-  /* ── 5. layout helpers & constants ──────────────────────────────────── */
-  const charW    = 9;
-  const maxName  = d3.max(flat, d => d.name.length);
+  const charW = 9;
+  const maxName = d3.max(flat, d => d.name.length);
   const hSpacing = Math.max(180, maxName * charW + 50);
   const vSpacing = 40;
-  const stub     = 20;
-  const indent   = 12;
+  const stub = 20;
+  const indent = 12;
 
   const root = d3.hierarchy(rootData, d => d.children);
   const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
 
-  /* collapse GEN-2 initially */
-  root.descendants().forEach(d=>{
-    if(d.data.gen === 2 && d.children){ d._children = d.children; d.children = null; }
+  root.descendants().forEach(d => {
+    if (d.data.gen === 2 && d.children) {
+      d._children = d.children;
+      d.children = null;
+    }
   });
 
-  /* ── 6. SVG scaffold ────────────────────────────────────────────────── */
-  const svg   = d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
+  const svg = d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio', 'xMinYMin meet');
   const gZoom = svg.append('g');
-  const g     = gZoom.append('g');
-  svg.call(d3.zoom().scaleExtent([0.5,2]).on('zoom', ({transform}) => gZoom.attr('transform', transform)));
+  const g = gZoom.append('g');
+  svg.call(d3.zoom().scaleExtent([0.5, 2]).on('zoom', ({ transform }) => gZoom.attr('transform', transform)));
 
-  function toggle(_, d){
-    if(d.data.gen === 2){
-      d.children ? (d._children = d.children, d.children = null)
-                 : (d.children = d._children, d._children = null);
+  function toggle(_, d) {
+    if (d.data.gen === 2) {
+      d.children ? (d._children = d.children, d.children = null) : (d.children = d._children, d._children = null);
       update();
     }
   }
 
-  /* ── 7. DRAW / UPDATE ──────────────────────────────────────────────── */
-  function update () {
-
-    /* 7-A  run D3-tree layout */
+  function update() {
     tree(root);
 
-    /* 7-B  recompute common GEN-3 X column *after* layout */
     const alignedX = d3.max(
       root.descendants().filter(d => d.depth === 1),
-      d => d.y + Math.max(80, d.data.name.length * charW + 20)/2 + stub
+      d => d.y + Math.max(80, d.data.name.length * charW + 20) / 2 + stub
     );
 
-    /* 7-C  responsive viewBox */
     const xs = root.descendants().map(d => d.x);
     const ys = root.descendants().map(d => d.y).concat(alignedX);
-    const M  = 100;
-    svg.attr('viewBox',
-      [0,0,
-       Math.max(...ys) - Math.min(...ys) + M*2,
-       Math.max(...xs) - Math.min(...xs) + M*2].join(' '));
-    g.attr('transform',
-      `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
+    const M = 100;
+    svg.attr('viewBox', [0, 0, Math.max(...ys) - Math.min(...ys) + M * 2, Math.max(...xs) - Math.min(...xs) + M * 2].join(' '));
+    g.attr('transform', `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
 
-    /* 7-D  vertical trunks (only nodes that have *visible* children) */
     g.selectAll('path.trunk')
       .data(root.descendants().filter(d => d.children?.length), d => d.data.id)
       .join(
-        enter => enter.append('path').attr('class','trunk'),
+        enter => enter.append('path').attr('class', 'trunk'),
         update => update,
-        exit   => exit.remove()
+        exit => exit.remove()
       )
       .attr('d', d => {
-        const pw = Math.max(80, d.data.name.length*charW + 20),
-              px = d.y + pw/2,
-              tx = d.depth === 1 ? alignedX : px + stub,   // GEN-2 trunks jump to alignedX
-              ys = d.children.map(c => c.x);
+        const pw = Math.max(80, d.data.name.length * charW + 20),
+          px = d.y + pw / 2,
+          tx = d.depth === 1 ? alignedX : px + stub,
+          ys = d.children.map(c => c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    /* 7-E  horizontal branches */
     g.selectAll('path.branch')
       .data(root.links(), d => d.target.data.id)
       .join(
-        enter => enter.append('path').attr('class','branch'),
+        enter => enter.append('path').attr('class', 'branch'),
         update => update,
-        exit   => exit.remove()
+        exit => exit.remove()
       )
       .attr('d', d => {
-        const srcW = Math.max(80, d.source.data.name.length*charW + 20);
-        const parentX = d.source.depth === 1
-                      ? alignedX
-                      : d.source.y + srcW/2 + stub;
-
-        const trgW  = Math.max(80, d.target.data.name.length*charW + 20);
-        const childTrunkX = d.target.depth === 2
-                          ? alignedX
-                          : d.target.y + trgW/2 + stub;
-
+        const srcW = Math.max(80, d.source.data.name.length * charW + 20);
+        const parentX = d.source.depth === 1 ? alignedX : d.source.y + srcW / 2 + stub;
+        const trgW = Math.max(80, d.target.data.name.length * charW + 20);
+        const childTrunkX = d.target.depth === 2 ? alignedX : d.target.y + trgW / 2 + stub;
         const hasKids = d.target.children && d.target.children.length;
         const endX = hasKids ? childTrunkX : parentX + indent;
-
         return `M${parentX},${d.target.x}H${endX}`;
       });
 
-    /* 7-F  node groups */
     g.selectAll('g.node')
       .data(root.descendants(), d => d.data.id)
       .join(
         enter => {
-          const n = enter.append('g').attr('class','node').on('click', toggle);
-          n.append('rect'); n.append('text'); n.append('title'); return n;
+          const n = enter.append('g').attr('class', 'node').on('click', toggle);
+          n.append('rect');
+          n.append('text');
+          n.append('title');
+          return n;
         },
         update => update,
-        exit   => exit.remove()
+        exit => exit.remove()
       )
-      .each(function (d){
-        const n   = d3.select(this),
+      .each(function (d) {
+        const n = d3.select(this),
               txt = d.data.name,
-              w   = Math.max(80, txt.length * charW + 20);
+              w = Math.max(80, txt.length * charW + 20);
 
-        const baseX = d.parent
-          ? (d.parent.depth === 1 ? alignedX : d.parent.y + Math.max(80,d.parent.data.name.length*charW+20)/2 + stub)
-          : d.y - w/2;                        // root centred
+        let baseX;
+        if (d.depth === 0) baseX = d.y - w / 2;
+        else if (d.depth === 1) baseX = alignedX;
+        else if (d.depth === 2) baseX = alignedX + stub;
+        else baseX = d.parent.y + Math.max(80, d.parent.data.name.length * charW + 20) / 2 + stub;
 
         n.attr('transform', `translate(${baseX + indent},${d.x})`);
         n.select('rect')
           .attr('class', `node-rect gen${d.data.gen}`)
-          .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
+          .attr('x', 0).attr('y', -12).attr('width', w).attr('height', 24);
         n.select('text')
-          .attr('class','node-text').attr('x',10).attr('y',0).text(txt);
-        n.select('title')
-          .text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : txt);
+          .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(txt);
+        let t = `Name: ${d.data.name}`;
+        if (d.data.spouse) t += `\nSpouse(s): ${d.data.spouse}`;
+        t += `\nGeneration: ${d.data.gen}`;
+        n.select('title').text(t);
+
+        n.selectAll('text.toggle-text').remove();
+        if (d.data.gen === 2) {
+          n.append("text")
+           .attr("class", "toggle-text")
+           .attr("x", w - 10)
+           .attr("y", 0)
+           .attr("text-anchor", "middle")
+           .attr("alignment-baseline", "central")
+           .text(d.children ? '−' : '+');
+        }
       });
   }
 
-  update();         /* initial draw */
+  update();
 })();
 </script>
 </body>
