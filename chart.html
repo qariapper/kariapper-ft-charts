@@ -1,274 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Kariapper Family Tree – up to 3 generations</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://d3js.org/d3.v7.min.js"></script>
+<meta charset="utf-8" />
+<title>Kariapper Family Tree – up to 3 generations</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://d3js.org/d3.v7.min.js"></script>
 
-  <style>
-    body{margin:0;font-family:"Segoe UI",sans-serif}
-    h1  {text-align:center;margin:12px 0}
-    #controls{text-align:center;margin:10px}
-    #tree_div{width:100%;height:calc(100vh - 120px);overflow:auto}
-    svg {display:block;width:100%;height:auto}
+<style>
+ body{margin:0;font-family:"Segoe UI",sans-serif}
+ h1{margin:12px 0;text-align:center}
 
-    .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
+ #controls{text-align:center;margin:10px}
+ #tree_div{height:calc(100vh - 120px);width:100%;overflow:auto}
 
-    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
-    .gen1{fill:#eceff4;stroke:#4c566a}
-    .gen2{fill:#e5e9f0;stroke:#3b4252}
-    .gen3{fill:#d8dee9;stroke:#2e3440}
-    .female{fill:#fbd3e0!important}
-    .male  {fill:#d0e4f7!important}
+ svg{display:block;width:100%;height:auto}
+ .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
 
-    .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
-    .node{cursor:pointer}
+ .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.14))}
+ .gen1{fill:#eceff4;stroke:#4c566a}
+ .gen2{fill:#e5e9f0;stroke:#3b4252}
+ .gen3{fill:#d8dee9;stroke:#2e3440}
+ .female{fill:#fbd3e0!important}
+ .male  {fill:#d0e4f7!important}
 
-    .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
-             stroke-width:.5;pointer-events:none}
-  </style>
+ .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
+ .node{cursor:pointer}
+
+ .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;
+          stroke:#fff;stroke-width:.5;pointer-events:none}
+</style>
 </head>
 <body>
 
-<h1>Kariapper Family Tree – up to 3 generations</h1>
+<h1>Kariapper Family Tree – up to 3 generations -q</h1>
 
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button onclick="zoomBy( 0.15)">+</button>
-  <button onclick="zoomBy(-0.15)">-</button>
+  <button onclick="zoomBy(-0.15)">−</button>
   <button onclick="resetZoom()">Reset</button>
 </div>
 
 <div id="tree_div">Loading…</div>
 
 <script>
-(async function () {
+(async function(){
 
-  /* ─────────────  CONFIG  ───────────── */
-  const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';  // << your sheet
-  const charW    = 9;      // average character width in px
-  const vSpacing = 40;     // vertical distance between siblings
-  const stub     = 20;     // horizontal length of mini-stub from node
-  const indent   = 12;     // inward offset so links don't touch boxes
-  const minBoxW  = 80;     // minimal node width in px
+/* ───── CONFIG ───── */
+const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8'; // Google-Sheet id
+const charW    = 9;      // average character width (px)
+const vSpacing = 40;     // vertical gap between siblings
+const stub     = 20;     // little horizontal stub out of every node
+const indent   = 12;     // inset so lines don’t touch the box
+const minBoxW  = 80;     // never skinnier than this
 
-  /* ─────────────  FETCH DATA  ───────────── */
-  const raw = await fetch(
-        `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
-        ).then(r=>r.text());
-  const json    = JSON.parse(raw.slice(raw.indexOf('(')+1, raw.lastIndexOf(')')));
-  const headers = json.table.cols.map(c=>c.label);
-  const rows    = json.table.rows;
+/* ───── FETCH SHEET (JSON) ───── */
+const raw   = await fetch(
+     `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
+    ).then(r=>r.text());
+const json  = JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
+const cols  = json.table.cols.map(c=>c.label);
+const rows  = json.table.rows;
 
-  const idIdx     = headers.findIndex(h=>/\(dID\)$/i.test(h));             // e.g. “(dID)”
-  const nameIdx   = headers.findIndex(h=>h.trim()==='Full Name');
-  const genIdx    = headers.findIndex(h=>/^generation$/i.test(h));
-  const spouseIdx = headers.findIndex(h=>h.trim().toLowerCase().startsWith('spouse'));
-  const genderIdx = headers.findIndex(h=>h.trim().toLowerCase()==='gender');
+const idIdx     = cols.findIndex(h=>/\(dID\)$/i.test(h));
+const nameIdx   = cols.findIndex(h=>h.trim()==='Full Name');
+const genIdx    = cols.findIndex(h=>/^generation$/i.test(h));
+const spouseIdx = cols.findIndex(h=>/^spouse/i.test(h));
+const genderIdx = cols.findIndex(h=>/^gender$/i.test(h));
 
-  if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
-    document.getElementById('tree_div').textContent='❌ Required columns missing';
-    return;
-  }
+if([idIdx,nameIdx,genIdx].some(i=>i<0)){
+  document.getElementById('tree_div').textContent='❌ required columns missing';
+  return;
+}
 
-  const flat = rows.map(r=>{
-      const id   = r.c[idIdx]?.v ?? '';
-      const name = r.c[nameIdx]?.v ?? '';
-      const gen  = +r.c[genIdx]?.v;
-      const spouse    = r.c[spouseIdx]?.v ?? '';
-      const genderRaw = genderIdx>=0 ? r.c[genderIdx]?.v?.toLowerCase() : '';
-      const gender    = genderRaw.startsWith('f')?'f' :
-                        genderRaw.startsWith('m')?'m' : '';
-      return {
-         id,name,gen,spouse,gender,
-         parent: id.includes('.') ? id.replace(/\.[^.]+$/,'') : '',
-         children: []
-      };
-  })
-  .filter(d=>d.id && d.name && Number.isFinite(d.gen) && d.gen<=3);
+const flat = rows.map(r=>{
+  const id   = r.c[idIdx]?.v ?? '';
+  const name = r.c[nameIdx]?.v ?? '';
+  const gen  = +r.c[genIdx]?.v;
+  const spouse = spouseIdx>-1 ? (r.c[spouseIdx]?.v ?? '') : '';
+  const gRaw   = genderIdx>-1 ? (r.c[genderIdx]?.v ?? '').toLowerCase() : '';
+  const gender = gRaw.startsWith('f')?'f':gRaw.startsWith('m')?'m':'';
+  return {id,name,gen,spouse,gender,
+          parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',children:[]};
+}).filter(d=>d.id && d.name && Number.isFinite(d.gen) && d.gen<=3);
 
-  const byId = Object.fromEntries(flat.map(d=>[d.id,d]));
-  flat.forEach(d=>{ if(d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
+const byId = Object.fromEntries(flat.map(d=>[d.id,d]));
+flat.forEach(d=>{ if(d.parent&&byId[d.parent]) byId[d.parent].children.push(d); });
 
-  const rootData = byId['ALK'];
-  if(!rootData){
-    document.getElementById('tree_div').textContent='❌ Root “ALK” not found';
-    return;
-  }
+const rootData = byId['ALK'];
+if(!rootData){
+  document.getElementById('tree_div').textContent='❌ root “ALK” not found';
+  return;
+}
 
-  /* ─────────────  D3 SET-UP  ───────────── */
-  const root = d3.hierarchy(rootData,d=>d.children);
-  const tree = d3.tree().nodeSize([vSpacing, /*hSpacing calculated later*/ ]);
+/* ───── D3 SETUP ───── */
+const root = d3.hierarchy(rootData,d=>d.children);
+const tree = d3.tree().nodeSize([vSpacing,180/*temp*/]);
 
-  // start with Gen-3 collapsed
-  root.descendants().forEach(d=>{
-      if(d.data.gen===2 && d.children){
-        d._children=d.children; d.children=null;
-      }
+// collapse gen-3 initially
+root.descendants().forEach(d=>{
+  if(d.data.gen===2 && d.children){ d._children=d.children; d.children=null; }
+});
+
+const svg   = d3.select('#tree_div').html('')
+                .append('svg').attr('preserveAspectRatio','xMinYMin meet');
+const gZoom = svg.append('g');        // zoom container
+const g     = gZoom.append('g');      // actual drawing layer
+
+const zoom  = d3.zoom().scaleExtent([.5,2])
+                .on('zoom',({transform})=>gZoom.attr('transform',transform));
+svg.call(zoom);
+
+const tooltip = g.append('text').attr('class','tooltip').style('display','none');
+
+/* ───── HELPERS ───── */
+function labelText(d){
+  const sign = d.data.gender==='f'?' ♀':
+               d.data.gender==='m'?' ♂':'';
+  return `${d.data.name}${sign} ${d.data.id}`;
+}
+const nodeWidth = d=>Math.max(minBoxW, labelText(d).length*charW + 20);
+
+function rightEdgeX(d){
+  return d.y + nodeWidth(d)/2 + indent + (d.depth===1?indent:0);
+}
+
+/* ───── DRAW / UPDATE ───── */
+function update(){
+
+  /* 1) layout with dynamic horizontal spacing */
+  const hSpacing = Math.max(180,
+       d3.max(root.descendants(),d=>nodeWidth(d))+60);
+  tree.nodeSize([vSpacing,hSpacing])(root);
+
+  /* 2) align every gen-2 trunk at one X so they look neat */
+  const alignedX = d3.max(root.descendants()
+                     .filter(d=>d.data.gen===2), rightEdgeX) + stub;
+
+  /* 3) update links */
+  g.selectAll('path.trunk')
+   .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
+   .join(enter=>enter.append('path').attr('class','trunk'))
+   .attr('d',d=>{
+       const px = rightEdgeX(d);
+       const tx = d.depth===1 ? alignedX : px+stub;
+       const ys = d.children.map(c=>c.x);
+       return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
+   });
+
+  g.selectAll('path.branch')
+   .data(root.links(),d=>d.target.data.id)
+   .join(enter=>enter.append('path').attr('class','branch'))
+   .attr('d',d=>{
+       const pX = d.source.depth===1 ? alignedX : rightEdgeX(d.source);
+       const childX = d.target.depth===2 ? alignedX : rightEdgeX(d.target);
+       const hitX   = (d.target.children&&d.target.children.length)
+                    ? childX : pX+indent;
+       return `M${pX},${d.target.x}H${hitX}`;
+   });
+
+  /* 4) nodes (rect + text) */
+  const nodeSel = g.selectAll('g.node')
+      .data(root.descendants(),d=>d.data.id)
+      .join(enter=>{
+        const n=enter.append('g').attr('class','node').on('click',toggle);
+        n.append('rect');
+        n.append('text');
+        return n;
+      });
+
+  nodeSel.each(function(d){
+      const n = d3.select(this);
+      const w = nodeWidth(d);
+
+      /* left-edge X the same way trunks work */
+      const base = d.parent
+          ? (d.parent.depth===1 ? alignedX : rightEdgeX(d.parent))
+          : d.y - w/2;
+      const extra = d.depth===1 ? indent : 0;
+      const x = base + indent + extra;
+
+      const genderCls = d.data.gender==='f'?'female':
+                        d.data.gender==='m'?'male':'';
+
+      n.attr('transform',`translate(${x},${d.x})`);
+      n.select('rect')
+        .attr('class',`node-rect gen${d.data.gen} ${genderCls}`)
+        .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
+      n.select('text')
+        .attr('class','node-text').attr('x',10).attr('y',0)
+        .text(labelText(d));
+
+      /* simple tooltip for spouse column */
+      n.on('mouseover',()=>{
+          tooltip.text(d.data.spouse ? `Spouse(s): ${d.data.spouse}`:'Spouse(s): –')
+                 .attr('x',x+6).attr('y',d.x-18)
+                 .style('display','block');
+      }).on('mouseout',()=>tooltip.style('display','none'));
   });
 
-  const svg   = d3.select('#tree_div').html('')
-                  .append('svg').attr('preserveAspectRatio','xMinYMin meet');
-  const gZoom = svg.append('g');
-  const g     = gZoom.append('g');
-  const zoom  = d3.zoom().scaleExtent([0.5,2])
-                  .on('zoom',({transform})=>gZoom.attr('transform',transform));
-  svg.call(zoom);
+  /* 5) resize the <svg> viewBox so nothing is clipped */
+  const nodes = root.descendants();
+  const left  = d3.min(nodes,d=>{
+        const w=nodeWidth(d);
+        const base=d.parent
+            ? (d.parent.depth===1 ? alignedX : rightEdgeX(d.parent))
+            : d.y - w/2;
+        const extra=d.depth===1?indent:0;
+        return base + indent + extra;
+  });
+  const right = d3.max(nodes,d=>{
+        const w=nodeWidth(d);
+        const base=d.parent
+            ? (d.parent.depth===1 ? alignedX : rightEdgeX(d.parent))
+            : d.y - w/2;
+        const extra=d.depth===1?indent:0;
+        return base + indent + extra + w;
+  });
+  const top    = d3.min(nodes,d=>d.x-14);
+  const bottom = d3.max(nodes,d=>d.x+14);
+  const M=60;
+  svg.attr('viewBox',
+    `${left-M} ${top-M} ${(right-left)+2*M} ${(bottom-top)+2*M}`);
+}
 
-  const tooltip = g.append('text').attr('class','tooltip').style('display','none');
-
-  /* ─────────────  HELPERS  ───────────── */
-  function labelText(d){
-    const sign = d.data.gender==='f' ? ' ♀' :
-                 d.data.gender==='m' ? ' ♂' : '';
-    return `${d.data.name}${sign} ${d.data.id}`;      // NB: non-breaking space before ID
-  }
-  function nodeWidth(d){
-    return Math.max(minBoxW, labelText(d).length * charW + 20);
-  }
-  /*  centralised “true right edge” of any node,
-      including both indents for gen-2 boxes          */
-  function rightEdgeX(d){
-    return d.y + nodeWidth(d)/2
-           + indent
-           + (d.depth===1 ? indent : 0)               // extra push for gen-2
-           + (d.depth===0 ? 0 : 0);                  // founder handled elsewhere
-  }
-
-  /* ─────────────  DRAW / UPDATE  ───────────── */
-  function update(){
-
-    /* horizontal spacing decided *after* first layout pass */
-    const hSpacing = Math.max(180,
-                       d3.max(root.descendants(),
-                       d=>nodeWidth(d))+60);
-    tree.nodeSize([vSpacing,hSpacing])(root);
-
-    // x-position used to ALIGN all gen-2 trunks vertically
-    const alignedX =
-        d3.max(root.descendants()
-              .filter(d=>d.data.gen===2), rightEdgeX) + stub;
-
-    /* ── VIEWBOX / GLOBAL G  ───────────────── */
-    const xs = root.descendants().map(d=>d.x);
-    const ys = root.descendants().map(d=>d.y)
-                 .concat(alignedX);
-    const M  = 100;
-    svg.attr('viewBox',[
-       0,0,
-       Math.max(...ys)-Math.min(...ys)+M*2,
-       Math.max(...xs)-Math.min(...xs)+M*2
-    ].join(' '));
-    g.attr('transform',
-       `translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
-
-    /* ── TRUNKS (vertical + stub from parent) ───────── */
-    g.selectAll('path.trunk')
-      .data(root.descendants().filter(d=>d.children?.length), d=>d.data.id)
-      .join(
-        enter=>enter.append('path').attr('class','trunk'),
-        update=>update,
-        exit=>exit.remove()
-      )
-      .attr('d',d=>{
-          const px = rightEdgeX(d);
-          const tx = d.depth===1 ? alignedX : px + stub;
-          const ys = d.children.map(c=>c.x);
-          return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-      });
-
-    /* ── BRANCHES (parent → child) ─────────── */
-    g.selectAll('path.branch')
-      .data(root.links(), d=>d.target.data.id)
-      .join(
-        enter=>enter.append('path').attr('class','branch'),
-        update=>update,
-        exit=>exit.remove()
-      )
-      .attr('d',d=>{
-          const parentX = d.source.depth===1
-                        ? alignedX
-                        : rightEdgeX(d.source);
-          const childTrunkX = d.target.depth===2
-                        ? alignedX
-                        : rightEdgeX(d.target);
-          const hasKids = d.target.children && d.target.children.length;
-          const endX    = hasKids ? childTrunkX : parentX + indent;
-          return `M${parentX},${d.target.x}H${endX}`;
-      });
-
-    /* ── NODES ─────────────────────────────── */
-    const nodeSel = g.selectAll('g.node')
-      .data(root.descendants(), d=>d.data.id)
-      .join(
-        enter=>{
-          const n = enter.append('g').attr('class','node');
-          n.append('rect');
-          n.append('text');
-          n.on('click',toggle);
-          return n;
-        },
-        update=>update,
-        exit=>exit.remove()
-      );
-
-    nodeSel.each(function(d){
-        const n = d3.select(this);
-        const w = nodeWidth(d);
-
-        /*   absolute X of the *left* of the rectangle   */
-        const parentBase = d.parent
-             ? (d.parent.depth===1 ? alignedX : rightEdgeX(d.parent))
-             : d.y - w/2;
-        const extra = d.depth===1 ? indent : 0;         // second indent for gen-2
-        const x = parentBase + indent + extra;
-
-        /* styling   */
-        const genderClass = d.data.gender==='f' ? 'female' :
-                            d.data.gender==='m' ? 'male'   : '';
-
-        n.attr('transform',`translate(${x},${d.x})`);
-        n.select('rect')
-          .attr('class',`node-rect gen${d.data.gen} ${genderClass}`)
-          .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
-        n.select('text')
-          .attr('class','node-text').attr('x',10).attr('y',0)
-          .text(labelText(d));
-
-        n.on('mouseover',()=>{
-            tooltip.text(d.data.spouse
-              ? `Spouse(s): ${d.data.spouse}`
-              : 'Spouse(s): none')
-              .attr('x',x+5)
-              .attr('y',d.x-18)
-              .style('display','block');
-        })
-        .on('mouseout',()=>tooltip.style('display','none'));
-    });
-  }
-
-  /* ── COLLAPSE / EXPAND GEN-3 ─────────────── */
-  let collapsed=true;
-  window.toggleGen3 = function(){
-    root.descendants().forEach(d=>{
+/* ───── collapse / expand helpers ───── */
+let collapsed=true;
+function toggleGen3(){
+  root.descendants().forEach(d=>{
       if(d.data.gen===2){
-        if(collapsed && d._children){ d.children=d._children; d._children=null; }
-        else if(!collapsed && d.children){ d._children=d.children; d.children=null; }
+        if(collapsed && d._children){d.children=d._children;d._children=null;}
+        else if(!collapsed && d.children){d._children=d.children;d.children=null;}
       }
-    });
-    collapsed=!collapsed;
-    update();
-  };
-
-  /* ── ZOOM BUTTONS ────────────────────────── */
-  window.zoomBy   = delta => svg.transition().duration(200)
-                       .call(zoom.scaleBy, 1+delta);
-  window.resetZoom= ()=>svg.transition().duration(200)
-                       .call(zoom.transform, d3.zoomIdentity);
-
-  /* first draw */
+  });
+  collapsed=!collapsed;
   update();
+}
+function toggle(e,d){
+  if(d.children){d._children=d.children;d.children=null;}
+  else if(d._children){d.children=d._children;d._children=null;}
+  update();
+}
+
+/* ───── zoom buttons ───── */
+window.zoomBy   = dz => svg.transition().duration(200).call(zoom.scaleBy,1+dz);
+window.resetZoom= () => svg.transition().duration(200).call(zoom.transform,d3.zoomIdentity);
+
+/* first render */
+update();
 })();
 </script>
 </body>
