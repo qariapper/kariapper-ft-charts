@@ -1,208 +1,164 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Trunk Fix</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <style>
-    body { margin: 0; font-family: "Segoe UI", sans-serif; }
-    h1 { text-align: center; margin: 12px 0; }
-    #controls { text-align: center; margin: 10px; }
-    #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
-    svg { display: block; width: 100%; height: auto; }
-
-    .trunk, .branch {
-      fill: none;
-      stroke: #888;
-      stroke-width: 1.5px;
-      stroke-linecap: round;
-    }
-
-    .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
-    .gen1 { fill: #eceff4; stroke: #4c566a; }
-    .gen2 { fill: #e5e9f0; stroke: #3b4252; }
-    .gen3 { fill: #d8dee9; stroke: #2e3440; }
-
-    .female { fill: #fbd3e0 !important; }
-    .male   { fill: #d0e4f7 !important; }
-
-    .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
-    .node { cursor: pointer; }
-
-    .tooltip {
-      paint-order: stroke;
-      font: 13px sans-serif;
-      fill: #333;
-      stroke: #fff;
-      stroke-width: 0.5;
-      pointer-events: none;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kariapper Family Tree – up to 3 generations</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha512-FafVxz0m0xwFFIaX4nAgjMSCtYhqy+s48Va+8D7T7c5PsYZtP291XmsFeothmx0H4QUqRtx8mI5dxS8zRfsvKg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+ body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+ }
+ svg {
+  overflow: visible;
+ }
+ .node rect {
+  stroke: #0003;
+  stroke-width: 1;
+  rx: 3px;
+  ry: 3px;
+ }
+ .node text {
+  font-size: 16px;
+  dominant-baseline: middle;
+  pointer-events: none;
+ }
+ .link {
+  fill: none;
+  stroke: #555;
+  stroke-width: 2px;
+ }
+ button {
+  margin: 8px;
+  padding: 6px 14px;
+  font-size: 14px;
+ }
+</style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations</h1>
-  <div id="controls">
-    <button onclick="toggleGen3()">Toggle Gen-3</button>
-  </div>
-  <div id="tree_div">Loading…</div>
+ <h1>Kariapper Family Tree – up to 3 generations-fix</h1>
+ <button id="toggle3">Toggle Gen‑3</button>
+ <div id="chart"></div>
+
 <script>
-(async function () {
-  const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-  const raw = await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`).then(r => r.text());
-  const json = JSON.parse(raw.slice(raw.indexOf('(') + 1, raw.lastIndexOf(')')));
-  const headers = json.table.cols.map(c => c.label);
-  const rows = json.table.rows;
+const SHEET_ID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
+const GID      = '0';   // first tab – adjust if needed
+const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
 
-  const idIdx     = headers.findIndex(h => /\(dID\)$/i.test(h));
-  const nameIdx   = headers.findIndex(h => h.trim() === 'Full Name');
-  const genIdx    = headers.findIndex(h => /^generation$/i.test(h));
-  const spouseIdx = headers.findIndex(h => h.trim().toLowerCase().startsWith('spouse'));
-  const genderIdx = headers.findIndex(h => h.trim().toLowerCase() === 'gender');
-
-  const flat = rows.map(r => {
-    const id = r.c[idIdx]?.v || '';
-    const name = r.c[nameIdx]?.v || '';
-    const gen = +r.c[genIdx]?.v;
-    const spouse = r.c[spouseIdx]?.v || '';
-    const genderRaw = genderIdx >= 0 ? r.c[genderIdx]?.v?.toLowerCase() : '';
-    const gender = genderRaw.startsWith('f') ? 'f' : genderRaw.startsWith('m') ? 'm' : '';
-    return {
-      id,
-      name,
-      gen,
-      gender,
-      parent: id.includes('.') ? id.replace(/\.[^.]+$/, '') : '',
-      spouse,
-      children: []
-    };
-  }).filter(d => d.id && d.name && Number.isFinite(d.gen) && d.gen <= 3);
-
-  const byId = Object.fromEntries(flat.map(d => [d.id, d]));
-  flat.forEach(d => { if (d.parent && byId[d.parent]) byId[d.parent].children.push(d); });
-  const rootData = byId['ALK'];
-  if (!rootData) {
-    document.getElementById('tree_div').textContent = '❌ root ALK not found';
-    return;
-  }
-
-  const charW = 9, stub = 20, indent = 12;
-  const maxName = d3.max(flat, d => d.name.length + 2);
-  const hSpacing = Math.max(180, maxName * charW + 50);
-  const vSpacing = 40;
-
-  const root = d3.hierarchy(rootData, d => d.children);
-  const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
-  root.descendants().forEach(d => {
-    if (d.data.gen === 2 && d.children) {
-      d._children = d.children;
-      d.children = null;
-    }
+/** Fetch rows from the Google Sheet and convert to array of objects */
+async function fetchSheet() {
+  const raw = await fetch(GVIZ_URL).then(r => r.text());
+  // GViz adds a JS wrapper – strip it
+  const json = JSON.parse(raw.substring(47, raw.length - 2));
+  const header = json.table.cols.map(c => c.label);
+  return json.table.rows.map(r => {
+    const obj = {};
+    r.c.forEach((cell, i) => obj[header[i]] = cell ? cell.v : '');
+    return obj;
   });
+}
 
-  const svg = d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio', 'xMinYMin meet');
-  const gZoom = svg.append('g');
-  const g = gZoom.append('g');
-  svg.call(d3.zoom().scaleExtent([0.5, 2]).on('zoom', ({ transform }) => gZoom.attr('transform', transform)));
+/** Convert sheet rows into hierarchical nodes */
+function rowsToHierarchy(rows) {
+  // Keep only up to generation 3
+  const nodes = rows.filter(r => +r['Generation'] <= 3).map(r => ({
+    id: r['Index'],
+    parentId: r['ParentIndex'] || null,
+    name: r['Name'],
+    gender: r['Gender'] || '',
+    gen: +r['Generation']
+  }));
+  return d3.stratify()
+           .id(d => d.id)
+           .parentId(d => d.parentId)(nodes);
+}
 
-  const tooltip = g.append('text').attr('class', 'tooltip').style('display', 'none');
+let hiddenGen3 = false;   // toggle state
 
-  function update() {
-    tree(root);
+function draw(root){
+  const width  = 1200;
+  const dx = 40;        // vertical gap
+  const dy = 260;       // horizontal gap
 
-    const alignedX = d3.max(
-      root.descendants().filter(d => d.depth === 1 && (d.children || d._children)),
-      d => d.y + Math.max(80, d.data.name.length * charW + 20) / 2 + stub
-    );
+  const tree = d3.tree().nodeSize([dx, dy]);
+  const rootTree = tree(root);
 
-    const xs = root.descendants().map(d => d.x);
-    const ys = root.descendants().map(d => d.y).concat(alignedX);
-    const M = 100;
-    svg.attr('viewBox', [0, 0, Math.max(...ys) - Math.min(...ys) + M * 2, Math.max(...xs) - Math.min(...xs) + M * 2].join(' '));
-    g.attr('transform', `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
+  // Compute extents incl. hidden
+  let x0 = Infinity, x1 = -Infinity;
+  rootTree.each(d => { x0 = Math.min(x0, d.x); x1 = Math.max(x1, d.x); });
 
-    g.selectAll('path.trunk')
-      .data(root.descendants().filter(d => d.children?.length || d._children?.length), d => d.data.id)
-      .join(enter => enter.append('path').attr('class', 'trunk'), update => update, exit => exit.remove())
-      .attr('d', d => {
-        const pw = Math.max(80, d.data.name.length * charW + 20);
-        const px = d.y + pw / 2;
-        const tx = d.depth === 1 || d.data.id === 'ALK' ? alignedX : px + stub;
-        const ys = ((d.children || d._children) || []).map(c => c.x);
-        return `M${px},${d.x}H${tx}${ys.length ? `M${tx},${d3.min(ys)}V${d3.max(ys)}` : ''}`;
-      });
+  const height = x1 - x0 + dx * 2;
 
-    g.selectAll('path.branch')
-      .data(root.links(), d => d.target.data.id)
-      .join(
-        enter => enter.append('path').attr('class', 'branch'),
-        update => update,
-        exit => exit.remove()
-      )
-      .attr('d', d => {
-        const srcW = Math.max(80, d.source.data.name.length * charW + 20);
-        const parentX = d.source.depth === 1 ? alignedX : d.source.y + srcW / 2 + stub;
-        const trgW = Math.max(80, d.target.data.name.length * charW + 20);
-        const childTrunkX = d.target.depth === 2 ? alignedX : d.target.y + trgW / 2 + stub;
-        const hasKids = d.target.children && d.target.children.length;
-        const endX = hasKids ? childTrunkX : parentX + indent;
-        return `M${parentX},${d.target.x}H${endX}`;
-      });
+  const svg = d3.select('#chart').append('svg')
+                .attr('viewBox', [0, 0, width, height])
+                .attr('width', '100%');
 
-    g.selectAll('g.node')
-      .data(root.descendants(), d => d.data.id)
-      .join(enter => {
-        const n = enter.append('g').attr('class', 'node').on('click', toggle);
-        n.append('rect'); n.append('text'); return n;
-      }, update => update, exit => exit.remove())
-      .each(function (d) {
-        const n = d3.select(this);
-        const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
-        const label = d.data.name + icon;
-        const w = Math.max(80, label.length * charW + 20);
-        const baseX = d.parent ? (d.parent.depth === 1 ? alignedX : d.parent.y + Math.max(80, d.parent.data.name.length * charW + 20) / 2 + stub) : d.y - w / 2;
-        const genderClass = d.data.gender === 'f' ? 'female' : d.data.gender === 'm' ? 'male' : '';
+  const g = svg.append('g')
+               .attr('transform', `translate(${dy * 1.2},${dx - x0})`);
 
-        n.attr('transform', `translate(${baseX + indent},${d.x})`);
-        n.select('rect')
-          .attr('class', `node-rect gen${d.data.gen} ${genderClass}`)
-          .attr('x', 0).attr('y', -12).attr('width', w).attr('height', 24);
-        n.select('text')
-          .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(label);
-
-        n.on('mouseover', function () {
-          tooltip.text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : 'Spouse(s): none')
-                 .attr('x', baseX + indent + 5)
-                 .attr('y', d.x - 18)
-                 .style('display', 'block');
-        }).on('mouseout', () => tooltip.style('display', 'none'));
-      });
-  }
-
-  function toggle(_, d) {
-    if (d.data.gen === 2) {
-      d.children ? (d._children = d.children, d.children = null) : (d.children = d._children, d._children = null);
-      update();
-    }
-  }
-
-  update();
-
-  let collapsed = true;
-  window.toggleGen3 = function () {
-    root.descendants().forEach(d => {
-      if (d.data.gen === 2) {
-        if (collapsed && d._children) {
-          d.children = d._children; d._children = null;
-        } else if (!collapsed && d.children) {
-          d._children = d.children; d.children = null;
-        }
-      }
+  // LINKS (include small stub from ancestors)
+  g.append('g')
+    .attr('fill', 'none')
+    .attr('stroke', '#555')
+    .attr('stroke-width', 2)
+    .selectAll('path')
+    .data(rootTree.links())
+    .join('path')
+    .attr('d', d => {
+      // hide if child is gen‑3 and currently hidden
+      if(hiddenGen3 && d.target.data.gen === 3) return '';
+      const midX = d.target.x;
+      return `M${d.source.y},${d.source.x}V${midX}H${d.target.y}`;
     });
-    collapsed = !collapsed;
-    update();
-  };
-})();
+
+  // NODES
+  const node = g.append('g')
+               .selectAll('g')
+               .data(rootTree.descendants())
+               .join('g')
+               .attr('class','node')
+               .attr('transform', d => `translate(${d.y},${d.x})`)
+               .style('display', d => hiddenGen3 && d.data.gen === 3 ? 'none' : null);
+
+  node.append('rect')
+      .attr('x', -6)
+      .attr('y', -18)
+      .attr('height', 36)
+      .attr('width', d => 12 + d.data.name.length * 8)
+      .attr('fill', d => d.data.gender.toLowerCase().startsWith('f') ? '#f7c7d3' : '#cfe3fa');
+
+  node.append('text')
+      .attr('dx', 0)
+      .text(d => `${d.data.name} ${genderIcon(d.data.gender)}`);
+}
+
+function genderIcon(g){
+  g = (g||'').toLowerCase();
+  if(g.startsWith('f')) return '♀';
+  if(g.startsWith('m')) return '♂';
+  return '';
+}
+
+/** Re‑draw chart, preserving toggle state */
+function buildChart(data){
+  d3.select('#chart').selectAll('*').remove();
+  draw(rowsToHierarchy(data));
+}
+
+// MAIN
+let cachedRows = [];
+fetchSheet().then(rows => {
+  cachedRows = rows;
+  buildChart(cachedRows);
+});
+
+d3.select('#toggle3').on('click', () => {
+  hiddenGen3 = !hiddenGen3;
+  buildChart(cachedRows);
+});
 </script>
 </body>
 </html>
