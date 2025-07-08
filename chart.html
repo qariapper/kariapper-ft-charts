@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - zoom</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - ALL</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -100,17 +100,23 @@
 
   const zoomStep = 1.25;              // how much to zoom in / out per click
 
-  d3.select('#btnZoomIn')
-    .on('click', () => svg.transition().duration(250)
-                          .call(zoomBehavior.scaleBy, zoomStep));
+  /* ------------- zoom buttons ------------- */
+  const zoomStep = 1.25;
+  d3.select('#btnZoomIn' ).on('click', () => svg.transition().call(zoomBehavior.scaleBy, zoomStep));
+  d3.select('#btnZoomOut').on('click', () => svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
+  d3.select('#btnReset'  ).on('click', () => svg.transition().call(zoomBehavior.transform, d3.zoomIdentity));
 
-  d3.select('#btnZoomOut')
-    .on('click', () => svg.transition().duration(250)
-                          .call(zoomBehavior.scaleBy, 1 / zoomStep));
-
-  d3.select('#btnReset')
-    .on('click', () => svg.transition().duration(250)
-                          .call(zoomBehavior.transform, d3.zoomIdentity));
+  /* ------------- OPTIONAL keyboard shortcuts ------------- */
+  window.addEventListener('keydown', e => {
+    if (e.target !== document.body) return;          // ignore if typing in an input
+    if (e.key === '+' || e.key === '=') {            // “+” key (shift = on many keyboards)
+      svg.transition().call(zoomBehavior.scaleBy, zoomStep);
+    } else if (e.key === '-' || e.key === '_') {     // “–” key
+      svg.transition().call(zoomBehavior.scaleBy, 1 / zoomStep);
+    } else if (e.key === '0') {                      // “0” resets zoom
+      svg.transition().call(zoomBehavior.transform, d3.zoomIdentity);
+    }
+  });
 
 
   function centerView(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
