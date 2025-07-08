@@ -29,7 +29,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations</h1>
+  <h1>Kariapper Family Tree – up to 3 generations--- K</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -148,7 +148,7 @@
   function update(){
     tree(root);
 
-    // recompute alignedX using full label-width
+    // Calculate alignedX only for trunks
     const alignedX = d3.max(
       root.descendants().filter(d=>(d.children?.length)||(d._children?.length)),
       d => {
@@ -188,7 +188,7 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    /* ---------- BRANCHES (fixed leaf-stub = indent) ---------- */
+    /* ---------- BRANCHES (fixed stub) ---------- */
     g.selectAll('path.branch')
       .data(root.links(), d=>d.target.data.id)
       .join(
@@ -200,13 +200,8 @@
         const icon   = d.source.data.gender==='f'? ' ♀' : d.source.data.gender==='m'? ' ♂' : '';
         const len    = (d.source.data.name + icon + ' ' + d.source.data.id).length;
         const srcW   = Math.max(80, len*charW + 20);
-
-        const parentX = d.source.depth===1
-          ? alignedX
-          : d.source.y + srcW/2 + (d.source.depth===0? indent:stub);
-
-        // leaf-stub always indent px
-        const endX = parentX + indent;
+        const parentX = d.source.y + srcW/2 + (d.source.depth===0? indent:0);
+        const endX = parentX + stub;
         return `M${parentX},${d.target.x}H${endX}`;
       });
 
@@ -231,24 +226,11 @@
         const label= d.data.name + icon + ' ' + d.data.id;
         const w    = Math.max(80, label.length*charW + 20);
 
-        let nodeX;
-        if (d.depth === 1) {
-          nodeX = alignedX + indent;
-        } else if (d.parent) {
-          if (d.parent.depth === 1) {
-            nodeX = alignedX + indent;
-          } else {
-            const pIcon = d.parent.data.gender==='f'? ' ♀' : d.parent.data.gender==='m'? ' ♂' : '';
-            const pLen  = (d.parent.data.name + pIcon + ' ' + d.parent.data.id).length;
-            const pW    = Math.max(80, pLen*charW + 20);
-            nodeX = d.parent.y + pW/2 + stub + indent;
-          }
-        } else {
-          nodeX = d.y - w/2 + indent;
-        }
+        // Center node box horizontally on d.y
+        const baseX = d.y - w/2 + indent;
         const genderClass = d.data.gender==='f'? 'female':'male';
 
-        n.attr('transform', `translate(${nodeX},${d.x})`);
+        n.attr('transform', `translate(${baseX},${d.x})`);
         n.select('rect')
           .attr('class', `node-rect gen${d.data.gen} ${genderClass}`)
           .attr('x',0).attr('y',-12)
@@ -264,7 +246,7 @@
             : 'Spouse(s): none';
           tooltip
             .text(t)
-            .attr('x', nodeX+5)
+            .attr('x', baseX+5)
             .attr('y', d.x-18)
             .style('display','block');
         }).on('mouseout', ()=> tooltip.style('display','none'));
