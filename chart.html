@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations X</h1>
+  <h1>Kariapper Family Tree – up to 3 generations Y</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -77,8 +77,20 @@
   if(!rootData){document.getElementById('tree_div').textContent='❌ root ALK not found';return;}
 
   const charW=9;
-  const maxName=d3.max(flat,d=>d.name.length+2);
-  const hSpacing=Math.max(180,maxName*charW+50);
+
+  // compute the maximum total label length: name + space + icon + space + dID
+  const maxLabelLen = d3.max(flat, d =>
+    d.name.length    // the name
+    + 1              // space before icon
+    + 1              // the icon itself (“♀” or “♂” counts as 1 char)
+    + 1              // space before ID
+    + d.id.length    // the dID string
+  );
+  // now scale the horizontal spacing to fit that widest label
+  const hSpacing = Math.max(180, maxLabelLen * charW + 50);
+
+
+
   const vSpacing=40;
   const stub=20;
   const indent=12;
@@ -199,8 +211,11 @@
       .each(function(d){
         const n=d3.select(this);
         const gender=d.data.gender;
-        const icon=gender==='f'?' ♀':gender==='m'?' ♂':'';
-        const label=d.data.name+icon;
+
+        const icon = gender==='f' ? ' ♀' : gender==='m' ? ' ♂' : '';
+        // add a space then the dID after the icon:
+        const label = d.data.name + icon + ' ' + d.data.id;
+
         const w=Math.max(80,label.length*charW+20);
         const baseX=d.parent
           ? (d.parent.depth===1?alignedX:d.parent.y+Math.max(80,d.parent.data.name.length*charW+20)/2+stub)
