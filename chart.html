@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - L</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -188,7 +188,6 @@
         const icon = d.data.gender==='f'? ' ♀' : d.data.gender==='m'? ' ♂' : '';
         const lbl  = d.data.name + icon + ' ' + d.data.id;
         const w    = Math.max(80, lbl.length*charW + 20);
-        // use indent for gen-1 stub, not full stub
         const px   = d.y + w/2 + (d.depth===0 ? indent : 0);
         const tx   = d.depth===1 ? alignedX : px + stub;
         const ys   = d.children.map(c => c.x);
@@ -212,7 +211,6 @@
         const tLblLen = (d.target.data.name + tIcon + ' ' + d.target.data.id).length;
         const trgW    = Math.max(80, tLblLen*charW + 20);
 
-        // for root (depth 0) use indent, for others use stub
         const parentX = d.source.depth===1
           ? alignedX
           : d.source.y + srcW/2 + (d.source.depth===0 ? indent : stub);
@@ -222,7 +220,8 @@
           : d.target.y + trgW/2 + stub;
 
         const hasKids = d.target.children && d.target.children.length;
-        const endX = hasKids ? childTrunkX : parentX + indent;
+        // use stub (20px) instead of indent for leaf stub
+        const endX = hasKids ? childTrunkX : parentX + stub;
         return `M${parentX},${d.target.x}H${endX}`;
       });
 
