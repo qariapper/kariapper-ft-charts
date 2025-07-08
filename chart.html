@@ -98,10 +98,9 @@
 
   svg.call(zoomBehavior);
 
+ /* ------------- zoom buttons ------------- */
   const zoomStep = 1.25;              // how much to zoom in / out per click
 
-  /* ------------- zoom buttons ------------- */
-  const zoomStep = 1.25;
   d3.select('#btnZoomIn' ).on('click', () => svg.transition().call(zoomBehavior.scaleBy, zoomStep));
   d3.select('#btnZoomOut').on('click', () => svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
   d3.select('#btnReset'  ).on('click', () => svg.transition().call(zoomBehavior.transform, d3.zoomIdentity));
