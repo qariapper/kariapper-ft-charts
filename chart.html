@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Trunk Fix</title>
+  <title>Kariapper Family Tree – Gender Icons & Colors</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -41,11 +41,12 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations-back</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
   </div>
   <div id="tree_div">Loading…</div>
+
 <script>
 (async function () {
   const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
@@ -59,6 +60,11 @@
   const genIdx    = headers.findIndex(h => /^generation$/i.test(h));
   const spouseIdx = headers.findIndex(h => h.trim().toLowerCase().startsWith('spouse'));
   const genderIdx = headers.findIndex(h => h.trim().toLowerCase() === 'gender');
+
+  if ([idIdx, nameIdx, genIdx, spouseIdx].some(i => i < 0)) {
+    document.getElementById('tree_div').textContent = '❌ missing columns';
+    return;
+  }
 
   const flat = rows.map(r => {
     const id = r.c[idIdx]?.v || '';
@@ -86,13 +92,16 @@
     return;
   }
 
-  const charW = 9, stub = 20, indent = 12;
-  const maxName = d3.max(flat, d => d.name.length + 2);
+  const charW = 9;
+  const maxName = d3.max(flat, d => d.name.length + 2); // space for icon
   const hSpacing = Math.max(180, maxName * charW + 50);
   const vSpacing = 40;
+  const stub = 20;
+  const indent = 12;
 
   const root = d3.hierarchy(rootData, d => d.children);
   const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
+
   root.descendants().forEach(d => {
     if (d.data.gen === 2 && d.children) {
       d._children = d.children;
@@ -105,7 +114,16 @@
   const g = gZoom.append('g');
   svg.call(d3.zoom().scaleExtent([0.5, 2]).on('zoom', ({ transform }) => gZoom.attr('transform', transform)));
 
-  const tooltip = g.append('text').attr('class', 'tooltip').style('display', 'none');
+  const tooltip = g.append('text')
+    .attr('class', 'tooltip')
+    .style('display', 'none');
+
+  function toggle(_, d) {
+    if (d.data.gen === 2) {
+      d.children ? (d._children = d.children, d.children = null) : (d.children = d._children, d._children = null);
+      update();
+    }
+  }
 
   function update() {
     tree(root);
@@ -122,14 +140,18 @@
     g.attr('transform', `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
 
     g.selectAll('path.trunk')
-      .data(root.descendants().filter(d => d.children?.length || d._children?.length), d => d.data.id)
-      .join(enter => enter.append('path').attr('class', 'trunk'), update => update, exit => exit.remove())
+      .data(root.descendants().filter(d => d.children?.length), d => d.data.id)
+      .join(
+        enter => enter.append('path').attr('class', 'trunk'),
+        update => update,
+        exit => exit.remove()
+      )
       .attr('d', d => {
-        const pw = Math.max(80, d.data.name.length * charW + 20);
-        const px = d.y + pw / 2;
-        const tx = d.depth === 1 || d.data.id === 'ALK' ? alignedX : px + stub;
-        const ys = ((d.children || d._children) || []).map(c => c.x);
-        return `M${px},${d.x}H${tx}${ys.length ? `M${tx},${d3.min(ys)}V${d3.max(ys)}` : ''}`;
+        const pw = Math.max(80, d.data.name.length * charW + 20),
+              px = d.y + pw / 2,
+              tx = d.depth === 1 ? alignedX : px + stub,
+              ys = d.children.map(c => c.x);
+        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
     g.selectAll('path.branch')
@@ -151,17 +173,27 @@
 
     g.selectAll('g.node')
       .data(root.descendants(), d => d.data.id)
-      .join(enter => {
-        const n = enter.append('g').attr('class', 'node').on('click', toggle);
-        n.append('rect'); n.append('text'); return n;
-      }, update => update, exit => exit.remove())
+      .join(
+        enter => {
+          const n = enter.append('g').attr('class', 'node').on('click', toggle);
+          n.append('rect');
+          n.append('text');
+          return n;
+        },
+        update => update,
+        exit => exit.remove()
+      )
       .each(function (d) {
         const n = d3.select(this);
-        const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
+        const gender = d.data.gender;
+        const icon = gender === 'f' ? ' ♀' : gender === 'm' ? ' ♂' : '';
         const label = d.data.name + icon;
         const w = Math.max(80, label.length * charW + 20);
-        const baseX = d.parent ? (d.parent.depth === 1 ? alignedX : d.parent.y + Math.max(80, d.parent.data.name.length * charW + 20) / 2 + stub) : d.y - w / 2;
-        const genderClass = d.data.gender === 'f' ? 'female' : d.data.gender === 'm' ? 'male' : '';
+        const baseX = d.parent
+          ? (d.parent.depth === 1 ? alignedX : d.parent.y + Math.max(80, d.parent.data.name.length * charW + 20) / 2 + stub)
+          : d.y - w / 2;
+
+        const genderClass = gender === 'f' ? 'female' : gender === 'm' ? 'male' : '';
 
         n.attr('transform', `translate(${baseX + indent},${d.x})`);
         n.select('rect')
@@ -170,20 +202,15 @@
         n.select('text')
           .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(label);
 
-        n.on('mouseover', function () {
-          tooltip.text(d.data.spouse ? `Spouse(s): ${d.data.spouse}` : 'Spouse(s): none')
-                 .attr('x', baseX + indent + 5)
-                 .attr('y', d.x - 18)
-                 .style('display', 'block');
+        n.on('mouseover', function(event) {
+          const label = d.data.spouse ? `Spouse(s): ${d.data.spouse}` : "Spouse(s): none";
+          tooltip
+            .text(label)
+            .attr('x', baseX + indent + 5)
+            .attr('y', d.x - 18)
+            .style('display', 'block');
         }).on('mouseout', () => tooltip.style('display', 'none'));
       });
-  }
-
-  function toggle(_, d) {
-    if (d.data.gen === 2) {
-      d.children ? (d._children = d.children, d.children = null) : (d.children = d._children, d._children = null);
-      update();
-    }
   }
 
   update();
