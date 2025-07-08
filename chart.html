@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – </title>
+  <title>Kariapper Family Tree – Trunk Fix</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -41,7 +41,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - fix</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
   </div>
@@ -122,13 +122,13 @@
     g.attr('transform', `translate(${M - Math.min(...ys)},${M - Math.min(...xs)})`);
 
     g.selectAll('path.trunk')
-      .data(root.descendants().filter(d => d.children?.length || d.data.id === 'ALK'), d => d.data.id)
+      .data(root.descendants().filter(d => d.children?.length || d._children?.length), d => d.data.id)
       .join(enter => enter.append('path').attr('class', 'trunk'), update => update, exit => exit.remove())
       .attr('d', d => {
         const pw = Math.max(80, d.data.name.length * charW + 20);
         const px = d.y + pw / 2;
-        const tx = d.depth === 1 ? alignedX : px + stub;
-        const ys = (d.children || []).map(c => c.x);
+        const tx = d.depth === 1 || d.data.id === 'ALK' ? alignedX : px + stub;
+        const ys = ((d.children || d._children) || []).map(c => c.x);
         return `M${px},${d.x}H${tx}${ys.length ? `M${tx},${d3.min(ys)}V${d3.max(ys)}` : ''}`;
       });
 
