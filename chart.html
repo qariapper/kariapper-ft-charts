@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Toggle Gen-3</title>
+  <title>Kariapper Family Tree – Gender Icons & Colors</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -24,6 +24,9 @@
     .gen2 { fill: #e5e9f0; stroke: #3b4252; }
     .gen3 { fill: #d8dee9; stroke: #2e3440; }
 
+    .female { fill: #fbd3e0 !important; }
+    .male   { fill: #d0e4f7 !important; }
+
     .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
     .node { cursor: pointer; }
 
@@ -38,7 +41,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - Gender coded</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
   </div>
@@ -56,6 +59,8 @@
   const nameIdx   = headers.findIndex(h => h.trim() === 'Full Name');
   const genIdx    = headers.findIndex(h => /^generation$/i.test(h));
   const spouseIdx = headers.findIndex(h => h.trim().toLowerCase().startsWith('spouse'));
+  const genderIdx = headers.findIndex(h => h.trim().toLowerCase() === 'gender');
+
   if ([idIdx, nameIdx, genIdx, spouseIdx].some(i => i < 0)) {
     document.getElementById('tree_div').textContent = '❌ missing columns';
     return;
@@ -66,10 +71,13 @@
     const name = r.c[nameIdx]?.v || '';
     const gen = +r.c[genIdx]?.v;
     const spouse = r.c[spouseIdx]?.v || '';
+    const genderRaw = genderIdx >= 0 ? r.c[genderIdx]?.v?.toLowerCase() : '';
+    const gender = genderRaw.startsWith('f') ? 'f' : genderRaw.startsWith('m') ? 'm' : '';
     return {
       id,
       name,
       gen,
+      gender,
       parent: id.includes('.') ? id.replace(/\.[^.]+$/, '') : '',
       spouse,
       children: []
@@ -85,7 +93,7 @@
   }
 
   const charW = 9;
-  const maxName = d3.max(flat, d => d.name.length);
+  const maxName = d3.max(flat, d => d.name.length + 2); // space for icon
   const hSpacing = Math.max(180, maxName * charW + 50);
   const vSpacing = 40;
   const stub = 20;
@@ -176,20 +184,23 @@
         exit => exit.remove()
       )
       .each(function (d) {
-        const n = d3.select(this),
-              txt = d.data.name,
-              w = Math.max(80, txt.length * charW + 20);
-
+        const n = d3.select(this);
+        const gender = d.data.gender;
+        const icon = gender === 'f' ? ' ♀' : gender === 'm' ? ' ♂' : '';
+        const label = d.data.name + icon;
+        const w = Math.max(80, label.length * charW + 20);
         const baseX = d.parent
           ? (d.parent.depth === 1 ? alignedX : d.parent.y + Math.max(80, d.parent.data.name.length * charW + 20) / 2 + stub)
           : d.y - w / 2;
 
+        const genderClass = gender === 'f' ? 'female' : gender === 'm' ? 'male' : '';
+
         n.attr('transform', `translate(${baseX + indent},${d.x})`);
         n.select('rect')
-          .attr('class', `node-rect gen${d.data.gen}`)
+          .attr('class', `node-rect gen${d.data.gen} ${genderClass}`)
           .attr('x', 0).attr('y', -12).attr('width', w).attr('height', 24);
         n.select('text')
-          .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(txt);
+          .attr('class', 'node-text').attr('x', 10).attr('y', 0).text(label);
 
         n.on('mouseover', function(event) {
           const label = d.data.spouse ? `Spouse(s): ${d.data.spouse}` : "Spouse(s): none";
@@ -204,7 +215,6 @@
 
   update();
 
-  // Toggle Gen-3 button logic
   let collapsed = true;
   window.toggleGen3 = function () {
     root.descendants().forEach(d => {
