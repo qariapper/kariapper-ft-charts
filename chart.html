@@ -12,24 +12,24 @@
     #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
     svg { display: block; width: 100%; height: auto; }
 
-    .trunk,.branch { fill:none; stroke:#888; stroke-width:1.5px; stroke-linecap:round }
-    .node-rect   { rx:4; ry:4; filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
-    .gen1         { fill:#eceff4; stroke:#4c566a }
-    .gen2         { fill:#e5e9f0; stroke:#3b4252 }
-    .gen3         { fill:#d8dee9; stroke:#2e3440 }
-    .female       { fill:#fbd3e0!important }
-    .male         { fill:#d0e4f7!important }
+    .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
+    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
+    .gen1{fill:#eceff4;stroke:#4c566a}
+    .gen2{fill:#e5e9f0;stroke:#3b4252}
+    .gen3{fill:#d8dee9;stroke:#2e3440}
+    .female{fill:#fbd3e0!important}
+    .male  {fill:#d0e4f7!important}
 
-    .node-text  { pointer-events:none; text-anchor:start; dominant-baseline:central }
-    .node       { cursor:pointer; }
-    .tooltip    { paint-order:stroke; font:13px sans-serif; fill:#333; stroke:#fff; stroke-width:.5; pointer-events:none; }
+    .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
+    .node{cursor:pointer}
+    .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;stroke-width:.5;pointer-events:none}
 
-    #btnReset  { margin-left:6px; font-size:.9em; opacity:.75 }
-    #btnZoomIn { margin-left:20px; font-size:.9em; opacity:.75 }
+    #btnReset{margin-left:6px;font-size:.9em;opacity:.75}
+    #btnZoomIn{margin-left:20px;font-size:.9em;opacity:.75}
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations-ooo</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -231,24 +231,26 @@
         const label= d.data.name + icon + ' ' + d.data.id;
         const w    = Math.max(80, label.length*charW + 20);
 
-        let pm;
-        if (d.parent){
-          if (d.parent.depth===1){
-            pm = alignedX;
+        let nodeX;
+        if (d.depth === 1) {
+          nodeX = alignedX + indent;
+        } else if (d.parent) {
+          if (d.parent.depth === 1) {
+            nodeX = alignedX + indent;
           } else {
             const pIcon = d.parent.data.gender==='f'? ' ♀' : d.parent.data.gender==='m'? ' ♂' : '';
             const pLen  = (d.parent.data.name + pIcon + ' ' + d.parent.data.id).length;
             const pW    = Math.max(80, pLen*charW + 20);
-            pm = d.parent.y + pW/2 + stub;
+            nodeX = d.parent.y + pW/2 + stub + indent;
           }
+        } else {
+          nodeX = d.y - w/2 + indent;
         }
-        const baseX = d.parent ? pm : d.y - w/2;
-        const extra = d.depth===1 ? indent : 0;
-        const gClass= d.data.gender==='f'? 'female':'male';
+        const genderClass = d.data.gender==='f'? 'female':'male';
 
-        n.attr('transform', `translate(${baseX+indent+extra},${d.x})`);
+        n.attr('transform', `translate(${nodeX},${d.x})`);
         n.select('rect')
-          .attr('class', `node-rect gen${d.data.gen} ${gClass}`)
+          .attr('class', `node-rect gen${d.data.gen} ${genderClass}`)
           .attr('x',0).attr('y',-12)
           .attr('width',w).attr('height',24);
         n.select('text')
@@ -262,7 +264,7 @@
             : 'Spouse(s): none';
           tooltip
             .text(t)
-            .attr('x', baseX+indent+5)
+            .attr('x', nodeX+5)
             .attr('y', d.x-18)
             .style('display','block');
         }).on('mouseout', ()=> tooltip.style('display','none'));
