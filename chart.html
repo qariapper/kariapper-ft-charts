@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - L</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -194,7 +194,7 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    /* ---------- BRANCHES ---------- */
+    /* ---------- BRANCHES (fixed stub length) ---------- */
     g.selectAll('path.branch')
       .data(root.links(), d => d.target.data.id)
       .join(
@@ -207,21 +207,11 @@
         const sLblLen = (d.source.data.name + sIcon + ' ' + d.source.data.id).length;
         const srcW    = Math.max(80, sLblLen*charW + 20);
 
-        const tIcon   = d.target.data.gender==='f'? ' ♀' : d.target.data.gender==='m'? ' ♂' : '';
-        const tLblLen = (d.target.data.name + tIcon + ' ' + d.target.data.id).length;
-        const trgW    = Math.max(80, tLblLen*charW + 20);
-
         const parentX = d.source.depth===1
           ? alignedX
           : d.source.y + srcW/2 + (d.source.depth===0 ? indent : stub);
 
-        const childTrunkX = d.target.depth===2
-          ? alignedX
-          : d.target.y + trgW/2 + stub;
-
-        const hasKids = d.target.children && d.target.children.length;
-        // use stub (20px) instead of indent for leaf stub
-        const endX = hasKids ? childTrunkX : parentX + stub;
+        const endX = parentX + stub;
         return `M${parentX},${d.target.x}H${endX}`;
       });
 
