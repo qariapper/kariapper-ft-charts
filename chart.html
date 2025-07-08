@@ -26,11 +26,16 @@
 
     .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
              stroke-width:.5;pointer-events:none}
+    /* tiny tweak so the reset button isn’t dominant */
+    #btnReset{margin-left:6px;font-size:.9em;opacity:.75}
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations-xx</h1>
-  <div id="controls"><button onclick="toggleGen3()">Toggle Gen-3</button></div>
+  <h1>Kariapper Family Tree – up to 3 generations - reset botton</h1>
+  <div id="controls">
+    <button onclick="toggleGen3()">Toggle Gen-3</button>
+    <button id="btnReset" onclick="resetView()">Reset View</button>
+  </div>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -82,7 +87,17 @@
   const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
   const gZoom=svg.append('g');
   const g=gZoom.append('g');
-  svg.call(d3.zoom().scaleExtent([0.5,2]).on('zoom',({transform})=>gZoom.attr('transform',transform)));
+
+  /* ---- zoom behaviour ---- */
+  const zoomBehavior=d3.zoom()
+      .scaleExtent([0.5,2])
+      .on('zoom',({transform})=>gZoom.attr('transform',transform));
+
+  svg.call(zoomBehavior);
+
+  function centerView(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
+  /* expose for reset button */
+  window.resetView=centerView;
 
   const tooltip=g.append('text').attr('class','tooltip').style('display','none');
 
@@ -90,6 +105,7 @@
     if(d.data.gen===2){
       d.children?(d._children=d.children,d.children=null):(d.children=d._children,d._children=null);
       update();
+      centerView();          // auto-recentre after collapsing/expanding
     }
   }
 
@@ -116,7 +132,6 @@
       )
       .attr('d',d=>{
         const w=Math.max(80,d.data.name.length*charW+20);
-        /* ▶ founder needs +indent so the stub starts outside the rectangle */
         const px=d.y+w/2+(d.depth===0?indent:0);
         const tx=d.depth===1?alignedX:px+stub;
         const ys=d.children.map(c=>c.x);
@@ -133,7 +148,6 @@
       )
       .attr('d',d=>{
         const srcW=Math.max(80,d.source.data.name.length*charW+20);
-        /* ▶ give founder links the extra indent too */
         const parentX=d.source.depth===1
               ? alignedX
               : d.source.y+srcW/2+stub+(d.source.depth===0?indent:0);
@@ -167,11 +181,11 @@
         const baseX=d.parent
           ? (d.parent.depth===1?alignedX:d.parent.y+Math.max(80,d.parent.data.name.length*charW+20)/2+stub)
           : d.y-w/2;
- 
-          const extra = d.depth === 1 ? indent : 0;        // ⇐ only gen-2
-          const genderClass = gender === 'f' ? 'female' : gender === 'm' ? 'male' : '';
 
-        n.attr('transform', `translate(${baseX + indent + extra},${d.x})`);
+        const extra=d.depth===1?indent:0;
+        const genderClass=gender==='f'?'female':gender==='m'?'male':'';
+
+        n.attr('transform',`translate(${baseX+indent+extra},${d.x})`);
         n.select('rect')
           .attr('class',`node-rect gen${d.data.gen} ${genderClass}`)
           .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
@@ -197,6 +211,7 @@
     });
     collapsed=!collapsed;
     update();
+    centerView();   // auto-recentre every toggle
   };
 })();
 </script>
