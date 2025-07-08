@@ -1,183 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8">
 <title>Kariapper Family Tree – up to 3 generations</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
- body{margin:0;font-family:"Segoe UI",sans-serif}
- h1{margin:12px 0;text-align:center}
- #controls{text-align:center;margin:10px}
- #tree_div{height:calc(100vh - 120px);width:100%;overflow:auto}
- svg{display:block;width:100%;height:auto}
- .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
- .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.14))}
- .gen1{fill:#eceff4;stroke:#4c566a}
- .gen2{fill:#e5e9f0;stroke:#3b4252}
- .gen3{fill:#d8dee9;stroke:#2e3440}
- .female{fill:#fbd3e0!important}
- .male  {fill:#d0e4f7!important}
- .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
- .node{cursor:pointer}
- .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;stroke-width:.5;pointer-events:none}
+    body      { font-family: "Segoe UI", system-ui, sans-serif; margin:0; }
+    h1        { text-align:center; margin:.75rem 0 0; }
+    #buttons  { text-align:center; margin:.25rem 0 1rem; }
+    button    { margin:0 .15rem; padding:.15rem .55rem; }
+    svg       { width:100%; height:calc(100vh - 120px); cursor:grab; }
+    .link     { fill:none; stroke:#6b6b6b; stroke-width:2px; }
+    .male     { fill:#d9e7ff; stroke:#406a9d; }
+    .female   { fill:#f7d1e5; stroke:#824576; }
+    text      { font:14px/1.15 sans-serif; pointer-events:none; }
 </style>
 </head>
 <body>
-<h1>Kariapper Family Tree – up to 3 generations-h</h1>
-<div id="controls">
-  <button onclick="toggleGen3()">Toggle Gen-3</button>
-  <button onclick="zoomBy( 0.15)">+</button>
-  <button onclick="zoomBy(-0.15)">−</button>
-  <button onclick="resetZoom()">Reset</button>
+
+<h1>Kariapper Family Tree – up to 3 generations nbmnb</h1>
+<div id="buttons">
+    <button id="toggle">Toggle Gen-3</button>
+    <button id="zoomIn">+</button>
+    <button id="zoomOut">−</button>
+    <button id="reset">Reset</button>
 </div>
-<div id="tree_div">Loading…</div>
+<svg id="chart"></svg>
+
 <script>
-(async function(){
-/* ───── CONFIG ───── */
-const sheetID  = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8'; // Google‑Sheet id (public‑only tab with ALK data)
-const charW    = 9;     // average character width (px)
-const vGap     = 40;    // vertical gap between siblings
-const stub     = 20;    // tiny tick before a box
-const indent   = 12;    // breathing space between box & trunk
-const minBoxW  = 90;
+/* ------------------------------------------------------------------
+   0. EDIT just this constant → paste your Sheet ID here
+       (or the whole CSV URL if you prefer).
+-------------------------------------------------------------------*/
+const SHEET_CSV =
+  "https://docs.google.com/spreadsheets/d/YOUR-SHEET-ID/export?format=csv";
 
-/* ───── LOAD SHEET (simple JSON) ───── */
-const raw = await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`).then(r=>r.text());
-const json = JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
-const cols = json.table.cols.map(c=>c.label);
-const rows = json.table.rows;
-const idCol = cols.findIndex(h=>/(dID)$/i.test(h));
-const nameCol=cols.findIndex(h=>/^full name$/i.test(h));
-const genCol =cols.findIndex(h=>/^generation$/i.test(h));
-const spouseCol=cols.findIndex(h=>/^spouse/i.test(h));
-const genderCol=cols.findIndex(h=>/^gender$/i.test(h));
+/* ------------------------------------------------------------------
+   1.  Pull data & build the tree
+-------------------------------------------------------------------*/
+d3.csv(SHEET_CSV).then(rows => {
+    /*  rows = [{id,parent,name,gender,dID}, …]                   */
+    buildChart(rows);
+}).catch(err => {
+    alert("Could not load the Google-Sheet CSV!\n" + err);
+});
 
-const flat = rows.map(r=>{
-  const id=r.c[idCol]?.v||'';
-  const name=r.c[nameCol]?.v||'';
-  const gen=+r.c[genCol]?.v;
-  return id&&name?{
-    id,name,gen,
-    spouse:spouseCol>-1?(r.c[spouseCol]?.v||''):'' ,
-    gender:genderCol>-1?(r.c[genderCol]?.v||'').toLowerCase().startsWith('f')?'f':'m':'',
-    parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'' ,
-    children:[]
-  }:null;
-}).filter(Boolean);
-const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
-flat.forEach(d=>{if(d.parent&&byId[d.parent])byId[d.parent].children.push(d);});
-const rootData=byId['ALK'];
-if(!rootData){document.getElementById('tree_div').textContent='❌ root "ALK" not found';return;}
-const root = d3.hierarchy(rootData,d=>d.children);
+/* ------------------------------------------------------------------
+   2.  Main drawing routine (identical to previous answer, but in
+       a function so we can call it after the async CSV loads)
+-------------------------------------------------------------------*/
+function buildChart(rows){
 
-/* collapse gen‑3 initially */
-root.descendants().forEach(d=>{ if(d.data.gen===2 && d.children){ d._children=d.children; d.children=null; } });
+    /* ------ D3 stratified tree ----------------------------------*/
+    const root = d3.stratify().id(d=>d.id).parentId(d=>d.parent || null)(rows);
+    d3.tree().nodeSize([110,250])(root);
 
-/* ───── SVG & ZOOM SETUP ───── */
-const svg   = d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
-const gZoom = svg.append('g');
-const g     = gZoom.append('g');
-const zoom  = d3.zoom().scaleExtent([.5,2]).on('zoom',({transform})=>gZoom.attr('transform',transform));
-svg.call(zoom);
-const tooltip=g.append('text').attr('class','tooltip').style('display','none');
+    const svg  = d3.select("#chart");
+    svg.selectAll("*").remove();           // reset if we redraw
+    const zoomLayer = svg.append("g");
 
-/* helpers */
-function label(d){return `${d.data.name}${d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':''} ${d.data.id}`;}
-const nodeW = d=>Math.max(minBoxW,label(d).length*charW+24);
+    /* -------- Links (trunk + stubs) -----------------------------*/
+    zoomLayer.append("g").selectAll("path")
+        .data(root.links())
+        .enter().append("path")
+        .attr("class","link")
+        .attr("d", d3.linkHorizontal()
+                     .x(d=>d.y)
+                     .y(d=>d.x));
 
-/* pre‑compute constants that never change */
-const rootW   = nodeW(root);
-const alignedX= rootW/2 + indent;            // trunk position for root & every gen‑1 parent
+    /* -------- Nodes --------------------------------------------*/
+    const nodeG = zoomLayer.append("g")
+        .selectAll("g")
+        .data(root.descendants())
+        .enter().append("g")
+        .attr("transform",d=>`translate(${d.y},${d.x})`);
 
-const tree = d3.tree().nodeSize([vGap,180]);
+    const PAD = 8;
 
-function update(){
-  tree(root);                                 // assigns x/y to each node
+    nodeG.append("text")
+         .text(d=>`${d.data.name} ${d.data.gender==='m'?'♂':'♀'} ${d.data.dID}`)
+         .each(function(d){ d.w = this.getBBox().width + PAD*2; })
+         .attr("x",d=>-d.w/2 + PAD)
+         .attr("dy",".35em");
 
-  /* first pass – decide final x‑positions for every box */
-  root.each(d=>{
-      const w=nodeW(d);
-      let x;
-      if(!d.parent)                     x = -w/2;                     // root centred on y=0
-      else if(d.parent.depth===0)       x = alignedX + stub;          // children of root
-      else                              x = d.parent.boxR + indent;   // deeper
-      d.boxL=x; d.boxR=x+w;
-  });
+    nodeG.insert("rect","text")
+         .attr("x",d=>-d.w/2)
+         .attr("y",-16)
+         .attr("width",d=>d.w)
+         .attr("height",32)
+         .attr("rx",4).attr("ry",4)
+         .attr("class",d=>d.data.gender==='m'?'male':'female');
 
-  /* trunks (vertical line that children hang off) */
-  const trunks=g.selectAll('path.trunk').data(root.descendants().filter(d=>d.children),d=>d.data.id)
-        .join(enter=>enter.append('path').attr('class','trunk'));
-  trunks.attr('d',d=>{
-      const startX = d.boxR;
-      const trunkX = d.depth<=1 ? alignedX : d.boxR + indent;
-      const ys=d.children.map(c=>c.x);
-      return `M${startX},${d.x}H${trunkX}M${trunkX},${d3.min(ys)}V${d3.max(ys)}`;
-  });
+    /* -------- Zoom (wheel, trackpad, buttons) ------------------*/
+    const zoom = d3.zoom()
+         .scaleExtent([0.25,4])
+         .on("zoom", e=>zoomLayer.attr("transform",e.transform));
 
-  /* branches (horizontal from trunk to child) */
-  const links=g.selectAll('path.branch').data(root.links(),d=>d.target.data.id)
-        .join(enter=>enter.append('path').attr('class','branch'));
-  links.attr('d',d=>{
-      const pX = d.source.depth<=1 ? alignedX : d.source.boxR + indent;
-      const cX = d.target.children ? (d.target.depth<=1?alignedX:d.target.boxR+indent) : d.target.boxL;
-      return `M${pX},${d.target.x}H${cX}`;
-  });
+    svg.call(zoom);
 
-  /* nodes (boxes & labels) */
-  const nodes=g.selectAll('g.node').data(root.descendants(),d=>d.data.id)
-        .join(enter=>{const n=enter.append('g').attr('class','node').on('click',toggle);
-                      n.append('rect');n.append('text');return n;});
+    d3.select("#zoomIn").on("click",()=>svg.transition().call(zoom.scaleBy,1.2));
+    d3.select("#zoomOut").on("click",()=>svg.transition().call(zoom.scaleBy,0.8));
+    d3.select("#reset").on("click",()=>svg.transition().call(zoom.transform,d3.zoomIdentity));
 
-  nodes.each(function(d){
-      const sel=d3.select(this);
-      const w=nodeW(d);
-      sel.attr('transform',`translate(${d.boxL},${d.x})`);
-      const gCls=d.data.gen===1?'gen1':d.data.gen===2?'gen2':'gen3';
-      const sex=d.data.gender==='f'?'female':d.data.gender==='m'?'male':'';
-      sel.select('rect').attr('class',`node-rect ${gCls} ${sex}`)
-         .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
-      sel.select('text').attr('class','node-text').attr('x',10).attr('y',0).text(label(d));
+    /* -------- Toggle generation-3 ------------------------------*/
+    let showG3 = true;
+    d3.select("#toggle").on("click",() =>{
+        showG3 = !showG3;
+        nodeG.attr("display",d=>(d.depth===2 && !showG3) ? "none":null);
+        zoomLayer.selectAll("path.link")
+                 .attr("display",d=> (d.target.depth===2 && !showG3)? "none":null);
+    });
 
-      sel.on('mouseover',()=>{
-          tooltip.text(d.data.spouse?`Spouse(s): ${d.data.spouse}`:'Spouse(s): –')
-                 .attr('x',d.boxL+6).attr('y',d.x-18).style('display','block');
-      }).on('mouseout',()=>tooltip.style('display','none'));
-  });
-
-  /* viewBox calc */
-  const left = d3.min(root.descendants(),d=>d.boxL)-40;
-  const right= d3.max(root.descendants(),d=>d.boxR)+40;
-  const top  = d3.min(root.descendants(),d=>d.x-30);
-  const bot  = d3.max(root.descendants(),d=>d.x+30);
-  svg.attr('viewBox',`${left} ${top} ${right-left} ${bot-top}`);
-}
-
-/* collapse / expand helpers */
-let collapsed=true;
-function toggleGen3(){
-  root.descendants().forEach(d=>{
-      if(d.data.gen===2){
-          if(collapsed && d._children){d.children=d._children;d._children=null;}
-          else if(!collapsed && d.children){d._children=d.children;d.children=null;}
-      }
-  });
-  collapsed=!collapsed;
-  update();
-}
-function toggle(e,d){
-  if(d.children){d._children=d.children;d.children=null;}
-  else if(d._children){d.children=d._children;d._children=null;}
-  update();
-}
-
-/* zoom helpers (exported) */
-window.zoomBy    = dz=>svg.transition().duration(250).call(zoom.scaleBy,1+dz);
-window.resetZoom = ()=>svg.transition().duration(250).call(zoom.transform,d3.zoomIdentity);
-window.toggleGen3= toggleGen3;
-
-update();
-})();
+} // buildChart()
 </script>
 </body>
 </html>
