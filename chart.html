@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Export + Toggle</title>
+  <title>Kariapper Family Tree – Toggle Gen-3</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -38,12 +38,9 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - EX</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
-    <button onclick="downloadPNG()">Download PNG</button>
-    <button onclick="downloadSVG()">Download SVG</button>
-    <button onclick="window.print()">Print</button>
   </div>
   <div id="tree_div">Loading…</div>
 
@@ -97,7 +94,6 @@
   const root = d3.hierarchy(rootData, d => d.children);
   const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
 
-  // collapse GEN-2 initially
   root.descendants().forEach(d => {
     if (d.data.gen === 2 && d.children) {
       d._children = d.children;
@@ -222,40 +218,6 @@
     });
     collapsed = !collapsed;
     update();
-  };
-
-  // PNG Export
-  window.downloadPNG = function () {
-    const svgNode = svg.node();
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svgNode);
-    const canvas = document.createElement("canvas");
-    const bbox = svgNode.getBBox();
-    canvas.width = bbox.width + 200;
-    canvas.height = bbox.height + 200;
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
-    img.onload = function () {
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 100, 100);
-      const png = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.download = "kariapper_tree.png";
-      link.href = png;
-      link.click();
-    };
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
-  };
-
-  // SVG Export
-  window.downloadSVG = function () {
-    const svgData = new XMLSerializer().serializeToString(svg.node());
-    const blob = new Blob([svgData], {type: "image/svg+xml;charset=utf-8"});
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "kariapper_tree.svg";
-    link.click();
   };
 })();
 </script>
