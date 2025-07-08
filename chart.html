@@ -41,7 +41,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations</h1>
+  <h1>Kariapper Family Tree – up to 3 generations-tttt</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
   </div>
@@ -129,7 +129,7 @@
     tree(root);
 
     const alignedX = d3.max(
-      root.descendants().filter(d => d.depth === 1 && (d.children || d._children)),
+      root.descendants().filter(d => (d.children && d.children.length) || (d._children && d._children.length)),
       d => d.y + Math.max(80, d.data.name.length * charW + 20) / 2 + stub
     );
 
