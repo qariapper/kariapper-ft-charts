@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - G</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -155,7 +155,7 @@
 
     // alignedX for depth-1 trunks
     const alignedX = d3.max(
-      root.descendants().filter(d => (d.children && d.children.length) || (d._children && d._children.length)),
+      root.descendants().filter(d => (d.children&&d.children.length)||(d._children&&d._children.length)),
       d => {
         const icon   = d.data.gender==='f'? ' ♀' : d.data.gender==='m'? ' ♂' : '';
         const lblLen = (d.data.name + icon + ' ' + d.data.id).length;
@@ -188,7 +188,8 @@
         const icon = d.data.gender==='f'? ' ♀' : d.data.gender==='m'? ' ♂' : '';
         const lbl  = d.data.name + icon + ' ' + d.data.id;
         const w    = Math.max(80, lbl.length*charW + 20);
-        const px   = d.y + w/2 + (d.depth===0 ? stub : 0);
+        // use indent for gen-1 stub, not full stub
+        const px   = d.y + w/2 + (d.depth===0 ? indent : 0);
         const tx   = d.depth===1 ? alignedX : px + stub;
         const ys   = d.children.map(c => c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
@@ -211,9 +212,10 @@
         const tLblLen = (d.target.data.name + tIcon + ' ' + d.target.data.id).length;
         const trgW    = Math.max(80, tLblLen*charW + 20);
 
+        // for root (depth 0) use indent, for others use stub
         const parentX = d.source.depth===1
           ? alignedX
-          : d.source.y + srcW/2 + stub + (d.source.depth===0 ? indent : 0);
+          : d.source.y + srcW/2 + (d.source.depth===0 ? indent : stub);
 
         const childTrunkX = d.target.depth===2
           ? alignedX
@@ -246,7 +248,6 @@
         const label  = d.data.name + icon + ' ' + d.data.id;
         const w      = Math.max(80, label.length*charW + 20);
 
-        // compute baseX from full parent-box width
         let parentMidX;
         if (d.parent) {
           if (d.parent.depth===1) {
