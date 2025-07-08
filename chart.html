@@ -1,164 +1,126 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Kariapper Family Tree – up to 3 generations</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha512-FafVxz0m0xwFFIaX4nAgjMSCtYhqy+s48Va+8D7T7c5PsYZtP291XmsFeothmx0H4QUqRtx8mI5dxS8zRfsvKg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<meta charset="utf-8">
+<title>Kariapper Family Tree – up to 3 generations</title>
 <style>
- body {
-  font-family: system-ui, -apple-system, sans-serif;
-  margin: 0;
-  padding: 0;
-  text-align: center;
- }
- svg {
-  overflow: visible;
- }
- .node rect {
-  stroke: #0003;
-  stroke-width: 1;
-  rx: 3px;
-  ry: 3px;
- }
- .node text {
-  font-size: 16px;
-  dominant-baseline: middle;
-  pointer-events: none;
- }
- .link {
-  fill: none;
-  stroke: #555;
-  stroke-width: 2px;
- }
- button {
-  margin: 8px;
-  padding: 6px 14px;
-  font-size: 14px;
- }
+    body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;text-align:center}
+    #chart{margin:40px auto;width:90vw;min-height:70vh}
+    .node rect{stroke:#000;stroke-width:.8px;rx:4;ry:4}
+    .node text{font-size:18px;dominant-baseline:middle}
+    .link{fill:none;stroke:#555;stroke-width:2px}
+    button{margin-top:15px;padding:6px 14px;font-size:14px;cursor:pointer}
 </style>
 </head>
 <body>
- <h1>Kariapper Family Tree – up to 3 generations-fix</h1>
- <button id="toggle3">Toggle Gen‑3</button>
- <div id="chart"></div>
+
+<h1>Kariapper Family Tree – up to 3 generations----</h1>
+<button id="toggle">Toggle Gen-3</button>
+<div id="chart"></div>
+
+<!-- ▶️  D3 (hash removed so it always loads) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <script>
-const SHEET_ID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-const GID      = '0';   // first tab – adjust if needed
-const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
+// ---------- CONFIG ----------
+const SHEET_ID = "1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8";
+const RANGE    = "A:Z";           // whole sheet (index, name, gender … spouse column Z)
+const SHOW_GEN = 3;               // depth limit we can toggle
+let gen3Visible = true;
 
-/** Fetch rows from the Google Sheet and convert to array of objects */
+// ---------- HELPERS ----------
+const genderFill = g => g==="Female" ? "#f8cfe1" : "#cfe1f8",
+      genderIcon = g => g==="Female" ? " ♀" : " ♂";
+
+// fetch Google sheet JSON (no API key needed because sheet is public-read)
 async function fetchSheet() {
-  const raw = await fetch(GVIZ_URL).then(r => r.text());
-  // GViz adds a JS wrapper – strip it
-  const json = JSON.parse(raw.substring(47, raw.length - 2));
-  const header = json.table.cols.map(c => c.label);
-  return json.table.rows.map(r => {
-    const obj = {};
-    r.c.forEach((cell, i) => obj[header[i]] = cell ? cell.v : '');
-    return obj;
+  const url = `https://opensheet.elk.sh/${SHEET_ID}/${RANGE}`;
+  return fetch(url).then(r=>r.json());
+}
+
+// build simple hierarchy (index “ALK.1.2” > array parts)
+function buildTree(rows){
+  const root={name:"",children:[]};
+  const map={"ALK":root};
+  rows.forEach(r=>{
+    const idx=r.Index||r["Index #"]||r.index; // column header variations
+    if(!idx) return;
+    const node={name:r.Name+genderIcon(r.Gender),gender:r.Gender,spouse:r["Spouse(s)"],children:[]};
+    map[idx]=node;
+    const parentIdx = idx.split(".").slice(0,-1).join(".")||"ALK";
+    (map[parentIdx]?.children||root.children).push(node);
   });
+  root.name = rows.find(r=>(r.Index||r["Index #"]||r.index)==="ALK")?.Name || "Ahamadu Lebbe Kariapper ♂";
+  root.gender="Male";
+  return root;
 }
 
-/** Convert sheet rows into hierarchical nodes */
-function rowsToHierarchy(rows) {
-  // Keep only up to generation 3
-  const nodes = rows.filter(r => +r['Generation'] <= 3).map(r => ({
-    id: r['Index'],
-    parentId: r['ParentIndex'] || null,
-    name: r['Name'],
-    gender: r['Gender'] || '',
-    gen: +r['Generation']
-  }));
-  return d3.stratify()
-           .id(d => d.id)
-           .parentId(d => d.parentId)(nodes);
+// ---------- DRAW ----------
+function draw(treeData){
+  d3.select("#chart").html("");                     // clear old
+  const chartW = document.getElementById("chart").clientWidth;
+  const dx=30, dy=220;                              // node size step
+  const tree = d3.tree().nodeSize([dx,dy]);
+  const root = d3.hierarchy(treeData);
+  tree(root);
+
+  const svg = d3.select("#chart").append("svg")
+      .attr("width",chartW)
+      .attr("height",root.height*dx+160)
+      .attr("viewBox",[-dy/2,-40,chartW,root.height*dx+160]);
+
+  // links
+  svg.append("g")
+     .attr("fill","none").attr("class","link")
+    .selectAll("path")
+    .data(root.links())
+    .join("path")
+     .attr("d", d3.linkHorizontal()
+           .x(d=>d.y)
+           .y(d=>d.x));
+
+  // nodes
+  const node = svg.append("g").selectAll("g")
+        .data(root.descendants())
+        .join("g")
+          .attr("class","node")
+          .attr("transform",d=>`translate(${d.y},${d.x})`);
+
+  node.append("rect")
+      .attr("fill",d=>genderFill(d.data.gender))
+      .attr("x",-5)
+      .attr("y",-12)
+      .attr("height",24)
+      .attr("width",d=>d.data.name.length*9+14);     // crude width calc
+
+  node.append("text")
+      .attr("x",4)
+      .text(d=>d.data.name)
+      .append("title")                               // tooltip = spouse(s)
+      .text(d=>d.data.spouse ? `Spouse: ${d.data.spouse}` : "No spouse on record");
+
+  // gen-3 toggle behavioural ref
+  node.filter(d=>d.depth===SHOW_GEN).classed("g3",true);
+  svg.selectAll(".link").filter(d=>d.target.depth===SHOW_GEN).classed("g3",true);
+
+  toggleGen3();   // start expanded
 }
 
-let hiddenGen3 = false;   // toggle state
-
-function draw(root){
-  const width  = 1200;
-  const dx = 40;        // vertical gap
-  const dy = 260;       // horizontal gap
-
-  const tree = d3.tree().nodeSize([dx, dy]);
-  const rootTree = tree(root);
-
-  // Compute extents incl. hidden
-  let x0 = Infinity, x1 = -Infinity;
-  rootTree.each(d => { x0 = Math.min(x0, d.x); x1 = Math.max(x1, d.x); });
-
-  const height = x1 - x0 + dx * 2;
-
-  const svg = d3.select('#chart').append('svg')
-                .attr('viewBox', [0, 0, width, height])
-                .attr('width', '100%');
-
-  const g = svg.append('g')
-               .attr('transform', `translate(${dy * 1.2},${dx - x0})`);
-
-  // LINKS (include small stub from ancestors)
-  g.append('g')
-    .attr('fill', 'none')
-    .attr('stroke', '#555')
-    .attr('stroke-width', 2)
-    .selectAll('path')
-    .data(rootTree.links())
-    .join('path')
-    .attr('d', d => {
-      // hide if child is gen‑3 and currently hidden
-      if(hiddenGen3 && d.target.data.gen === 3) return '';
-      const midX = d.target.x;
-      return `M${d.source.y},${d.source.x}V${midX}H${d.target.y}`;
-    });
-
-  // NODES
-  const node = g.append('g')
-               .selectAll('g')
-               .data(rootTree.descendants())
-               .join('g')
-               .attr('class','node')
-               .attr('transform', d => `translate(${d.y},${d.x})`)
-               .style('display', d => hiddenGen3 && d.data.gen === 3 ? 'none' : null);
-
-  node.append('rect')
-      .attr('x', -6)
-      .attr('y', -18)
-      .attr('height', 36)
-      .attr('width', d => 12 + d.data.name.length * 8)
-      .attr('fill', d => d.data.gender.toLowerCase().startsWith('f') ? '#f7c7d3' : '#cfe3fa');
-
-  node.append('text')
-      .attr('dx', 0)
-      .text(d => `${d.data.name} ${genderIcon(d.data.gender)}`);
+// ---------- TOGGLE ----------
+function toggleGen3(){
+  gen3Visible = !gen3Visible;
+  d3.selectAll(".g3")
+    .style("display", gen3Visible?null:"none");
 }
 
-function genderIcon(g){
-  g = (g||'').toLowerCase();
-  if(g.startsWith('f')) return '♀';
-  if(g.startsWith('m')) return '♂';
-  return '';
-}
+// ---------- RUN ----------
+fetchSheet()
+  .then(buildTree)
+  .then(draw)
+  .catch(err=>console.error("Sheet load/draw error:",err));
 
-/** Re‑draw chart, preserving toggle state */
-function buildChart(data){
-  d3.select('#chart').selectAll('*').remove();
-  draw(rowsToHierarchy(data));
-}
-
-// MAIN
-let cachedRows = [];
-fetchSheet().then(rows => {
-  cachedRows = rows;
-  buildChart(cachedRows);
-});
-
-d3.select('#toggle3').on('click', () => {
-  hiddenGen3 = !hiddenGen3;
-  buildChart(cachedRows);
-});
+document.getElementById("toggle").onclick = toggleGen3;
 </script>
+
 </body>
 </html>
