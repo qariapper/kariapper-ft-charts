@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations Y</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -78,18 +78,12 @@
 
   const charW=9;
 
-  // compute the maximum total label length: name + space + icon + space + dID
-  const maxLabelLen = d3.max(flat, d =>
-    d.name.length    // the name
-    + 1              // space before icon
-    + 1              // the icon itself (“♀” or “♂” counts as 1 char)
-    + 1              // space before ID
-    + d.id.length    // the dID string
-  );
-  // now scale the horizontal spacing to fit that widest label
-  const hSpacing = Math.max(180, maxLabelLen * charW + 50);
-
-
+  const maxLabelLen = d3.max(flat, d => {
+    const icon = d.gender==='f'? ' ♀' : d.gender==='m'? ' ♂' : '';
+    // count the total characters of “Name ♂ ALK.x”
+    return (d.name + icon + ' ' + d.id).length;
+  });
+  const hSpacing = Math.max(180, maxLabelLen*charW + 50);
 
   const vSpacing=40;
   const stub=20;
@@ -167,8 +161,12 @@
         exit=>exit.remove()
       )
       .attr('d',d=>{
-        const w=Math.max(80,d.data.name.length*charW+20);
-        const px=d.y+w/2+(d.depth===0?indent:0);
+        const icon = d.data.gender==='f'? ' ♀' : d.data.gender==='m'? ' ♂' : '';
+        const lbl  = d.data.name + icon + ' ' + d.data.id;
+        const w    = Math.max(80, lbl.length*charW + 20);
+
+        const px = d.y + w/2 + (d.depth===0 ? stub : 0);
+
         const tx=d.depth===1?alignedX:px+stub;
         const ys=d.children.map(c=>c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
@@ -212,9 +210,10 @@
         const n=d3.select(this);
         const gender=d.data.gender;
 
-        const icon = gender==='f' ? ' ♀' : gender==='m' ? ' ♂' : '';
-        // add a space then the dID after the icon:
+        const icon  = gender==='f'? ' ♀' : gender==='m'? ' ♂' : '';
+        // add a space + the dID after the icon
         const label = d.data.name + icon + ' ' + d.data.id;
+
 
         const w=Math.max(80,label.length*charW+20);
         const baseX=d.parent
