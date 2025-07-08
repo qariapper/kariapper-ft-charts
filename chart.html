@@ -31,11 +31,14 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - reset botton</h1>
-  <div id="controls">
-    <button onclick="toggleGen3()">Toggle Gen-3</button>
-    <button id="btnReset" onclick="resetView()">Reset View</button>
-  </div>
+  <h1>Kariapper Family Tree – up to 3 generations - zoom</h1>
+<div id="controls">
+  <button onclick="toggleGen3()">Toggle Gen-3</button>
+  <button id="btnZoomIn">＋</button>
+  <button id="btnZoomOut">－</button>
+  <button id="btnReset">100 %</button>
+</div>
+
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -94,6 +97,21 @@
       .on('zoom',({transform})=>gZoom.attr('transform',transform));
 
   svg.call(zoomBehavior);
+
+  const zoomStep = 1.25;              // how much to zoom in / out per click
+
+  d3.select('#btnZoomIn')
+    .on('click', () => svg.transition().duration(250)
+                          .call(zoomBehavior.scaleBy, zoomStep));
+
+  d3.select('#btnZoomOut')
+    .on('click', () => svg.transition().duration(250)
+                          .call(zoomBehavior.scaleBy, 1 / zoomStep));
+
+  d3.select('#btnReset')
+    .on('click', () => svg.transition().duration(250)
+                          .call(zoomBehavior.transform, d3.zoomIdentity));
+
 
   function centerView(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
   /* expose for reset button */
