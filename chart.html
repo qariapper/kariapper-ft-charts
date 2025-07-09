@@ -13,6 +13,8 @@
     svg { display: block; width: 100%; height: auto; }
 
     .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
+    .branch-highlight{stroke:red!important;stroke-width:3px!important}
+    .stub-hit{fill:none;stroke:transparent;stroke-width:10px;cursor:pointer}
     .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
     .gen1{fill:#eceff4;stroke:#4c566a}
     .gen2{fill:#e5e9f0;stroke:#3b4252}
@@ -30,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -aaa</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -bbb</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -67,7 +69,7 @@
     const genderRaw=genderIdx>=0?r.c[genderIdx]?.v?.toLowerCase():'';
     const gender=genderRaw.startsWith('f')?'f':genderRaw.startsWith('m')?'m':'';
     const dod = r.c[dodIdx]?.v || '';
-    return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
+    return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[],_hidden:false,_isolated:false};
   }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
 
   const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
@@ -88,7 +90,7 @@
   const root=d3.hierarchy(rootData,d=>d.children);
   const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
 
-  root.descendants().forEach(d=>{if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;} });
+  root.descendants().forEach(d=>{if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;}});
 
   const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
   const gZoom=svg.append('g');
@@ -128,6 +130,28 @@
     }
   }
 
+  // Stub-click isolation toggle
+  function stubToggle(event,d){
+    const node=d.target;
+    if(!node.data._isolated){
+      // isolate: hide siblings
+      const siblings=node.parent.children;
+      siblings.forEach(c=>{ if(c !== node) c.data._hidden = true; });
+      node.data._isolated = true;
+    } else {
+      // restore
+      const siblings=node.parent.children;
+      siblings.forEach(c=>{ c.data._hidden = false; });
+      node.data._isolated = false;
+    }
+    // update display/hide
+    g.selectAll('g.node').style('display', d=>d.data._hidden?'none':'');
+    g.selectAll('path.branch').style('display', d=>d.target.data._hidden?'none':'');
+    g.selectAll('path.branch').classed('branch-highlight', d=>d.target.data._isolated);
+    tooltip.style('display','none');
+    event.stopPropagation();
+  }
+
   function update(){
     tree(root);
 
@@ -145,6 +169,7 @@
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
+    // draw trunks
     g.selectAll('path.trunk')
       .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
       .join(
@@ -162,6 +187,7 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
+    // draw branches
     g.selectAll('path.branch')
       .data(root.links(),d=>d.target.data.id)
       .join(
@@ -184,8 +210,43 @@
         const hasKids=d.target.children&&d.target.children.length;
         const endX=hasKids?childTrunkX:parentX+indent;
         return `M${parentX},${d.target.x}H${endX}`;
-      });
+      })
+      .style('display', d=>d.target.data._hidden?'none':'');
 
+    // invisible hit zones for stub clicks
+    g.selectAll('path.branch-hit')
+      .data(root.links(),d=>d.target.data.id)
+      .join(
+        enter=>enter.append('path').attr('class','stub-hit')
+          .on('click', stubToggle)
+          .on('mouseover',(_,d)=>{
+            tooltip.text('Click to isolate this child')
+              .attr('x',event.layerX).attr('y',event.layerY-15)
+              .style('display','block');
+          })
+          .on('mouseout',()=>tooltip.style('display','none')),
+        update=>update,
+        exit=>exit.remove()
+      )
+      .attr('d',d=>{
+        // same path as branch
+        const sIcon = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
+        const sLabel = d.source.data.name + sIcon + ' ' + d.source.data.id;
+        const srcW=Math.max(80,sLabel.length*charW+20);
+        const parentX=d.source.depth===1
+              ? alignedX
+              : d.source.y+srcW/2+stub+(d.source.depth===0?indent:0);
+        const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
+        const tLabel = d.target.data.name + tIcon + ' ' + d.target.data.id;
+        const trgW=Math.max(80,tLabel.length*charW+20);
+        const childTrunkX=d.target.depth===2?alignedX:d.target.y+trgW/2+stub;
+        const hasKids=d.target.children&&d.target.children.length;
+        const endX=hasKids?childTrunkX:parentX+indent;
+        return `M${parentX},${d.target.x}H${endX}`;
+      })
+      .style('display', d=>d.target.data._hidden?'none':'');
+
+    // draw nodes
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
@@ -218,6 +279,8 @@
           .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
         n.select('text')
           .attr('class','node-text').attr('x',10).attr('y',0).text(label);
+
+        n.style('display', d.data._hidden?'none':'');
 
         n.on('mouseover',()=>{
           const t=d.data.spouse?`Spouse(s): ${d.data.spouse}`:'Spouse(s): none';
