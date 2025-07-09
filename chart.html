@@ -19,6 +19,7 @@
     .gen3{fill:#d8dee9;stroke:#2e3440}
     .female{fill:#fbd3e0!important}
     .male  {fill:#d0e4f7!important}
+    .deceased { stroke: green !important; }
 
     .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
     .node{cursor:pointer}
@@ -29,14 +30,13 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -o</h1>
-<div id="controls">
-  <button onclick="toggleGen3()">Toggle Gen-3</button>
-  <button id="btnZoomIn">＋</button>
-  <button id="btnZoomOut">－</button>
-  <button id="btnReset">Reset View</button>
-</div>
-
+  <h1>Kariapper Family Tree – up to 3 generations -dec</h1>
+  <div id="controls">
+    <button onclick="toggleGen3()">Toggle Gen-3</button>
+    <button id="btnZoomIn">＋</button>
+    <button id="btnZoomOut">－</button>
+    <button id="btnReset">Reset View</button>
+  </div>
   <div id="tree_div">Loading…</div>
 
 <script>
@@ -52,6 +52,7 @@
   const genIdx=headers.findIndex(h=>/^generation$/i.test(h));
   const spouseIdx=headers.findIndex(h=>h.trim().toLowerCase().startsWith('spouse'));
   const genderIdx=headers.findIndex(h=>h.trim().toLowerCase()==='gender');
+  const dodIdx=12; // Column M is index 12 (0-based)
 
   if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
     document.getElementById('tree_div').textContent='❌ missing columns';
@@ -65,7 +66,8 @@
     const spouse=r.c[spouseIdx]?.v||'';
     const genderRaw=genderIdx>=0?r.c[genderIdx]?.v?.toLowerCase():'';
     const gender=genderRaw.startsWith('f')?'f':genderRaw.startsWith('m')?'m':'';
-    return{id,name,gen,gender,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
+    const dod = r.c[dodIdx]?.v || '';
+    return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
   }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
 
   const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
@@ -74,7 +76,6 @@
   if(!rootData){document.getElementById('tree_div').textContent='❌ root ALK not found';return;}
 
   const charW=9;
-  // compute max label length INCLUDING dID
   const maxLabelLen = d3.max(flat, d => {
     const icon = d.gender==='f'?' ♀':d.gender==='m'?' ♂':'';
     return (d.name + icon + ' ' + d.id).length;
@@ -93,21 +94,16 @@
   const gZoom=svg.append('g');
   const g=gZoom.append('g');
 
-  /* ---- zoom behaviour ---- */
   const zoomBehavior=d3.zoom()
       .scaleExtent([0.5,2])
       .on('zoom',({transform})=>gZoom.attr('transform',transform));
-
   svg.call(zoomBehavior);
 
-  /* ------------- zoom buttons ------------- */
   const zoomStep = 1.25;
-
   d3.select('#btnZoomIn' ).on('click', () => svg.transition().call(zoomBehavior.scaleBy, zoomStep));
   d3.select('#btnZoomOut').on('click', () => svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
   d3.select('#btnReset'  ).on('click', () => svg.transition().call(zoomBehavior.transform, d3.zoomIdentity));
 
-  /* ------------- OPTIONAL keyboard shortcuts ------------- */
   window.addEventListener('keydown', e => {
     if (e.target !== document.body) return;
     if (e.key === '+' || e.key === '=') {
@@ -149,7 +145,6 @@
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-    /* ---------- TRUNK ---------- */
     g.selectAll('path.trunk')
       .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
       .join(
@@ -167,7 +162,6 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    /* ---------- BRANCHES ---------- */
     g.selectAll('path.branch')
       .data(root.links(),d=>d.target.data.id)
       .join(
@@ -192,7 +186,6 @@
         return `M${parentX},${d.target.x}H${endX}`;
       });
 
-    /* ---------- NODES ---------- */
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
@@ -217,10 +210,11 @@
 
         const extra=d.depth===1?indent:0;
         const genderClass=gender==='f'?'female':gender==='m'?'male':'';
+        const deathClass=d.data.dod ? ' deceased' : '';
 
         n.attr('transform',`translate(${baseX+indent+extra},${d.x})`);
         n.select('rect')
-          .attr('class',`node-rect gen${d.data.gen} ${genderClass}`)
+          .attr('class',`node-rect gen${d.data.gen} ${genderClass}${deathClass}`)
           .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
         n.select('text')
           .attr('class','node-text').attr('x',10).attr('y',0).text(label);
