@@ -13,7 +13,6 @@
     svg { display: block; width: 100%; height: auto; }
 
     .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
-
     .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
     .gen1{fill:#eceff4;stroke:#4c566a}
     .gen2{fill:#e5e9f0;stroke:#3b4252}
@@ -23,21 +22,19 @@
 
     .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
     .node{cursor:pointer}
-
     .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
              stroke-width:.5;pointer-events:none}
-    /* tiny tweak so the reset button isn’t dominant */
     #btnReset{margin-left:6px;font-size:.9em;opacity:.75}
     #btnZoomIn{margin-left:20px;font-size:.9em;opacity:.75}
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations X</h1>
+  <h1>Kariapper Family Tree – up to 3 generations</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
   <button id="btnZoomOut">－</button>
-  <button id="btnReset">RESET</button>
+  <button id="btnReset">Reset View</button>
 </div>
 
   <div id="tree_div">Loading…</div>
@@ -77,8 +74,12 @@
   if(!rootData){document.getElementById('tree_div').textContent='❌ root ALK not found';return;}
 
   const charW=9;
-  const maxName=d3.max(flat,d=>d.name.length+2);
-  const hSpacing=Math.max(180,maxName*charW+50);
+  // compute max label length INCLUDING dID
+  const maxLabelLen = d3.max(flat, d => {
+    const icon = d.gender==='f'?' ♀':d.gender==='m'?' ♂':'';
+    return (d.name + icon + ' ' + d.id).length;
+  });
+  const hSpacing=Math.max(180,maxLabelLen*charW+50);
   const vSpacing=40;
   const stub=20;
   const indent=12;
@@ -99,8 +100,8 @@
 
   svg.call(zoomBehavior);
 
- /* ------------- zoom buttons ------------- */
-  const zoomStep = 1.25;              // how much to zoom in / out per click
+  /* ------------- zoom buttons ------------- */
+  const zoomStep = 1.25;
 
   d3.select('#btnZoomIn' ).on('click', () => svg.transition().call(zoomBehavior.scaleBy, zoomStep));
   d3.select('#btnZoomOut').on('click', () => svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
@@ -108,19 +109,17 @@
 
   /* ------------- OPTIONAL keyboard shortcuts ------------- */
   window.addEventListener('keydown', e => {
-    if (e.target !== document.body) return;          // ignore if typing in an input
-    if (e.key === '+' || e.key === '=') {            // “+” key (shift = on many keyboards)
+    if (e.target !== document.body) return;
+    if (e.key === '+' || e.key === '=') {
       svg.transition().call(zoomBehavior.scaleBy, zoomStep);
-    } else if (e.key === '-' || e.key === '_') {     // “–” key
+    } else if (e.key === '-' || e.key === '_') {
       svg.transition().call(zoomBehavior.scaleBy, 1 / zoomStep);
-    } else if (e.key === '0') {                      // “0” resets zoom
+    } else if (e.key === '0') {
       svg.transition().call(zoomBehavior.transform, d3.zoomIdentity);
     }
   });
 
-
   function centerView(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
-  /* expose for reset button */
   window.resetView=centerView;
 
   const tooltip=g.append('text').attr('class','tooltip').style('display','none');
@@ -129,7 +128,7 @@
     if(d.data.gen===2){
       d.children?(d._children=d.children,d.children=null):(d.children=d._children,d._children=null);
       update();
-      centerView();          // auto-recentre after collapsing/expanding
+      centerView();
     }
   }
 
@@ -138,7 +137,11 @@
 
     const alignedX=d3.max(
       root.descendants().filter(d=>(d.children&&d.children.length)||(d._children&&d._children.length)),
-      d=>d.y+Math.max(80,d.data.name.length*charW+20)/2+stub);
+      d=>{
+        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+        const label = d.data.name + icon + ' ' + d.data.id;
+        return d.y + Math.max(80,label.length*charW+20)/2 + stub;
+      });
 
     const xs=root.descendants().map(d=>d.x);
     const ys=root.descendants().map(d=>d.y).concat(alignedX);
@@ -155,7 +158,9 @@
         exit=>exit.remove()
       )
       .attr('d',d=>{
-        const w=Math.max(80,d.data.name.length*charW+20);
+        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+        const label = d.data.name + icon + ' ' + d.data.id;
+        const w=Math.max(80,label.length*charW+20);
         const px=d.y+w/2+(d.depth===0?indent:0);
         const tx=d.depth===1?alignedX:px+stub;
         const ys=d.children.map(c=>c.x);
@@ -171,12 +176,16 @@
         exit=>exit.remove()
       )
       .attr('d',d=>{
-        const srcW=Math.max(80,d.source.data.name.length*charW+20);
+        const sIcon = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
+        const sLabel = d.source.data.name + sIcon + ' ' + d.source.data.id;
+        const srcW=Math.max(80,sLabel.length*charW+20);
         const parentX=d.source.depth===1
               ? alignedX
               : d.source.y+srcW/2+stub+(d.source.depth===0?indent:0);
 
-        const trgW=Math.max(80,d.target.data.name.length*charW+20);
+        const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
+        const tLabel = d.target.data.name + tIcon + ' ' + d.target.data.id;
+        const trgW=Math.max(80,tLabel.length*charW+20);
         const childTrunkX=d.target.depth===2?alignedX:d.target.y+trgW/2+stub;
         const hasKids=d.target.children&&d.target.children.length;
         const endX=hasKids?childTrunkX:parentX+indent;
@@ -200,10 +209,10 @@
         const n=d3.select(this);
         const gender=d.data.gender;
         const icon=gender==='f'?' ♀':gender==='m'?' ♂':'';
-        const label=d.data.name+icon;
+        const label=d.data.name+icon+' '+d.data.id;
         const w=Math.max(80,label.length*charW+20);
         const baseX=d.parent
-          ? (d.parent.depth===1?alignedX:d.parent.y+Math.max(80,d.parent.data.name.length*charW+20)/2+stub)
+          ? (d.parent.depth===1?alignedX:d.parent.y+Math.max(80,(d.parent.data.name+(d.parent.data.gender==='f'?' ♀':d.parent.data.gender==='m'?' ♂':'')+' '+d.parent.data.id).length*charW+20)/2+stub)
           : d.y-w/2;
 
         const extra=d.depth===1?indent:0;
@@ -235,7 +244,7 @@
     });
     collapsed=!collapsed;
     update();
-    centerView();   // auto-recentre every toggle
+    centerView();
   };
 })();
 </script>
