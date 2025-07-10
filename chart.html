@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -dddd</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -in</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -311,23 +311,28 @@
         .on('mouseout',()=>tooltip.style('display','none'));
 
       // stub-zone (invisible) for isolate toggle
+      // stub-zone (invisible) for isolate toggle
       n.append('rect')
         .attr('class','stub-zone')
-        .attr('x',-indent).attr('y',-12)
-        .attr('width',indent).attr('height',24)
+        .attr('x', -indent)
+        .attr('y', -12)
+        .attr('width', indent)
+        .attr('height', indent)        // ← now only the top half of the box
         .style('fill','transparent')
         .style('cursor','pointer')
         .on('mouseover',()=>{
-          tooltip.text('click to isolate this child')
-            .attr('x',baseX - indent + 2)
-            .attr('y',d.x - 20)
+          tooltip
+            .text('click to isolate this child')
+            .attr('x', baseX - indent + 2)
+            .attr('y', d.x - 20)
             .style('display','block');
         })
         .on('mouseout',()=>tooltip.style('display','none'))
-        .on('click',event=>{
+        .on('click', event=>{
           event.stopPropagation();
           toggleIsolate(d);
         });
+
     });
   }
 
