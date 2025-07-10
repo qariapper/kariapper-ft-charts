@@ -39,7 +39,7 @@
     }
 
     .node{cursor:pointer}
-    .stub-zone{fill:transparent;cursor:pointer}
+    .stub-zone{fill: rgba(0,0,0,0.001);cursor:pointer}
     .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
              stroke-width:.5;pointer-events:none}
     #btnReset{margin-left:6px;font-size:.9em;opacity:.75}
@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -bb</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -ew</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -353,7 +353,8 @@
 
       // 2) bring all the transparent stub-zones on top so they can receive mouse events:
       g.selectAll('rect.stub-zone').raise();
-
+      g.select('text.tooltip').raise();
+      g.select('text.tooltip').raise();
   }
 
   update();
