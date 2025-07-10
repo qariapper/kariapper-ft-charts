@@ -12,7 +12,15 @@
     #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
     svg { display: block; width: 100%; height: auto; }
 
-    .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
+    .trunk,
+    .branch {
+      fill: none;
+      stroke: #888;
+      stroke-width: 1.5px;
+      stroke-linecap: round;
+      pointer-events: none;
+      }
+
     .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
     .gen1{fill:#eceff4;stroke:#4c566a}
     .gen2{fill:#e5e9f0;stroke:#3b4252}
@@ -39,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - AB</h1>
+  <h1>Kariapper Family Tree – up to 3 generations - CD</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -338,6 +346,15 @@
         .attr('y', 0)
         .text(lbl);
     });
+      // …after you've drawn nodes, branches, trunks, etc. …
+  
+      // 1) bring all the stub-lines (leaf branch paths) above the node rectangles:
+      g.selectAll('path.branch').raise();
+
+      // 2) bring all the transparent stub-zones on top so they can receive mouse events:
+      g.selectAll('rect.stub-zone').raise();
+}
+
   }
 
   update();
