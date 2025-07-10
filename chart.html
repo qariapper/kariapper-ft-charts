@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -end</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -ag</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -227,37 +227,41 @@
     g.attr('transform',`translate(${M-Math.min(...allY)},${M-Math.min(...allX)})`);
 
     // --- stub-zones under everything ---
+    // --- transparent hit-areas over every stub (collapsed OR leaf) ---
     const stubs = g.selectAll('rect.stub-zone')
       .data(
-        // only the children of ALK (depth===1)
-        root.descendants().filter(d => d.depth === 1),
+        // every non-root node that has NO visible children
+        root.descendants().filter(d => d.depth > 0 && !d.children),
         d => d.data.id
       );
-        
-      stubs.join(
-      enter=>enter.append('rect').attr('class','stub-zone'),
-      update=>update,
-      exit=>exit.remove()
+
+    stubs.join(
+      enter => enter.append('rect').attr('class','stub-zone'),
+      update => update,
+      exit   => exit.remove()
     )
-    .attr('x', d=>d.baseX - indent)
-    .attr('y', d=>d.x - 12)
-    .attr('width', indent)
-    .attr('height', 24)
-
-    .on('mouseover', (event, d) => {
-      tooltip
-        .text('click to isolate this child')
-        .attr('x', d.baseX - indent + 2)
-        .attr('y', d.x - 20)
-        .style('display','block')
-        .raise();               // <— also bring it to the very top
-    })
-
-    .on('mouseout', ()=>tooltip.style('display','none'))
-    .on('click', e=>{
-      e.stopPropagation();
-      toggleIsolate(d3.select(e.currentTarget).datum());
-    });
+      // for collapsed branches we hit the full 'stub' width;
+    //   for true leaves we only need the short 'indent' stub
+      .attr('x',      d => d._children
+                        ? d.baseX - stub    // collapsed Gen-2 branch
+                        : d.baseX - indent) // Gen-3 leaf stub
+      .attr('y',      d => d.x - 12)
+      .attr('width',  d => d._children ? stub : indent)
+      .attr('height', 24)
+      .on('mouseover', (e,d) => {
+        tooltip
+          .text('click to isolate this branch')
+          // mirror the same x we used for the rect
+          .attr('x', (d._children ? d.baseX - stub : d.baseX - indent) + 2)
+          .attr('y', d.x - 20)
+          .style('display','block')
+          .raise();
+      })
+      .on('mouseout', () => tooltip.style('display','none'))
+      .on('click', (e,d) => {
+        e.stopPropagation();
+        toggleIsolate(d);
+      });
 
     // --- draw trunks ---
     const trunks = g.selectAll('path.trunk')
@@ -357,12 +361,7 @@
     });
       // …after you've drawn nodes, branches, trunks, etc. …
       
-      // 1) bring all the stub-lines (leaf branch paths) above the node rectangles:
-      //g.selectAll('path.branch').raise();
-      //g.selectAll('path.trunk').raise();
-      // make sure the nodes themselves are above the branch/trunk lines:
       g.selectAll('g.node').raise();
-      // 2) bring all the transparent stub-zones on top so they can receive mouse events:
       g.selectAll('rect.stub-zone').raise();
       g.select('text.tooltip').raise();
   }
