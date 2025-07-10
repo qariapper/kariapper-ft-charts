@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -dsa</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -end</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -228,8 +228,13 @@
 
     // --- stub-zones under everything ---
     const stubs = g.selectAll('rect.stub-zone')
-      .data(root.descendants(), d=>d.data.id);
-    stubs.join(
+      .data(
+        // only the children of ALK (depth===1)
+        root.descendants().filter(d => d.depth === 1),
+        d => d.data.id
+      );
+        
+      stubs.join(
       enter=>enter.append('rect').attr('class','stub-zone'),
       update=>update,
       exit=>exit.remove()
@@ -266,7 +271,7 @@
       const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
       const lbl  = d.data.name + icon + ' ' + d.data.id;
       const w    = Math.max(80,lbl.length*charW+20);
-      const px   = d.y + w/2 + (d.depth===0?indent:0);
+      const px = d.y + w/2 + (d.depth===0 ? 0      : indent);
       const tx   = d.depth===1 ? alignedX : px + stub;
       const ys   = d.children.map(c=>c.x);
       return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
@@ -353,9 +358,10 @@
       // …after you've drawn nodes, branches, trunks, etc. …
       
       // 1) bring all the stub-lines (leaf branch paths) above the node rectangles:
-      g.selectAll('path.branch').raise();
-      g.selectAll('path.trunk').raise();
-
+      //g.selectAll('path.branch').raise();
+      //g.selectAll('path.trunk').raise();
+      // make sure the nodes themselves are above the branch/trunk lines:
+      g.selectAll('g.node').raise();
       // 2) bring all the transparent stub-zones on top so they can receive mouse events:
       g.selectAll('rect.stub-zone').raise();
       g.select('text.tooltip').raise();
