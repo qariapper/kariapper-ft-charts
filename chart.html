@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - CC </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - dd </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -257,18 +257,7 @@
                     : p.y + pw/2 + stub);
       return px;
     })
-    .attr('width', d => d.baseX - (
-      // same trunk-X code here:
-      (() => {
-        const p = d.parent;
-        const pic = p.data.gender==='f'?'♀':p.data.gender==='m'?'♂':'';
-        const plbl = p.data.name + ' ' + pic + ' ' + p.data.id;
-        const pw   = Math.max(80, plbl.length*charW + 20);
-        return (p.depth===1
-                ? alignedX
-                : p.y + pw/2 + stub);
-      })()
-    ))
+    .attr('width', stub)
     .attr('height', vSpacing)
     .on('mouseover', (e,d) => {
       tooltip
@@ -286,7 +275,7 @@
 
     // --- draw trunks ---
     const trunks = g.selectAll('path.trunk')
-      .data(root.descendants().filter(d=>d.children?.length), d=>d.data.id);
+      .data(root.descendants().filter(d ⇒ (d.children && d.children.length) || (d._children && d._children.length)), d=>d.data.id);
     trunks.join(
       enter=>enter.append('path').attr('class','trunk'),
       update=>update,
@@ -322,7 +311,7 @@
       const tW    = Math.max(80,tLbl.length*charW+20);
       const cX = d.target.y + tW/2 + stub;
       // new:
-      const endX = d.target.baseX;       // ← stub now goes right up to the box
+      const endX = cX;
       return `M${sX},${d.target.x}H${endX}`;
 
     });
