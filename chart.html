@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - T </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - A </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -200,15 +200,19 @@
       const w    = Math.max(80,lbl.length*charW+20);
 
       if (d.parent) {
-        const p   = d.parent;
+        const p = d.parent;
         const pic = p.data.gender==='f'?' ♀':p.data.gender==='m'?' ♂':'';
         const plbl= p.data.name + pic + ' ' + p.data.id;
         const pw  = Math.max(80,plbl.length*charW+20);
         const px  = p.depth===1
                   ? alignedX
                   : p.y + pw/2 + stub + (p.depth===0?indent:0);
-        const ex  = d.depth===1 ? indent : 0;
-        d.baseX   = px + indent + ex;
+        // adjust horizontal offset per generation
+        let offset;
+        if (d.depth === 1)      offset = indent * 2;  // Gen-1: two indents
+        else if (d.depth === 2) offset = 0;            // Gen-2: flush with stub
+        else                    offset = indent;       // Gen-3 and beyond: one indent
+        d.baseX = px + offset;
       } else {
         // root: center under its own y
         d.baseX = d.y - w/2;
@@ -227,47 +231,37 @@
     g.attr('transform',`translate(${M-Math.min(...allY)},${M-Math.min(...allX)})`);
 
     // --- stub-zones under everything ---
-    // --- transparent hit-areas over every stub (collapsed OR leaf) ---
-
     const stubs = g.selectAll('rect.stub-zone')
       .data(
-        // every non-root node that has no *visible* children (either collapsed or a true leaf)
-          root.descendants().filter(d =>
-            d.depth > 0 &&
-            (!d.children || d.children.length === 0)
-          ),
-          d => d.data.id
-        );
-
+        root.descendants().filter(d =>
+          d.depth > 0 &&
+          (!d.children || d.children.length === 0)
+        ),
+        d => d.data.id
+      );
 
     stubs.join(
       enter => enter.append('rect').attr('class','stub-zone'),
       update => update,
       exit   => exit.remove()
     )
-    // cover exactly the row where the node sits
-      .attr('x',      d => d.baseX - stub)
-      .attr('y',      d => d.x - vSpacing/2) // <-- position vertically
-      .attr('width',  stub)
-      .attr('height', vSpacing)
-    
-    
-      .on('mouseover', (e,d) => {
+    .attr('x',      d => d.baseX - stub)
+    .attr('y',      d => d.x - vSpacing/2)
+    .attr('width',  stub)
+    .attr('height', vSpacing)
+    .on('mouseover', (e,d) => {
       tooltip
         .text('click to isolate this branch')
-        // center the tooltip over the stub-zone
         .attr('x', d.baseX - stub/2)
-        // just above the stub-zone
-        .attr('y', d.x - vSpacing/2 - 6)
+        // position tooltip down into the gap between nodes
+        .attr('y', d.x - vSpacing/2 + 14)
         .style('display','block');
-        
-      })
-      .on('mouseout', () => tooltip.style('display','none'))
-      .on('click', (e,d) => {
-        e.stopPropagation();
-        toggleIsolate(d);
-      });
-
+    })
+    .on('mouseout', () => tooltip.style('display','none'))
+    .on('click', (e,d) => {
+      e.stopPropagation();
+      toggleIsolate(d);
+    });
 
     // --- draw trunks ---
     const trunks = g.selectAll('path.trunk')
@@ -301,7 +295,7 @@
       const sW    = Math.max(80,sLbl.length*charW+20);
       const sX    = d.source.depth===1
                   ? alignedX
-                  : d.source.y + sW/2 + stub;  // ↓ no extra indent on root–>Gen-1
+                  : d.source.y + sW/2 + stub;
       const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
       const tLbl  = d.target.data.name + tIcon + ' ' + d.target.data.id;
       const tW    = Math.max(80,tLbl.length*charW+20);
@@ -357,17 +351,16 @@
         })
         .on('mouseout', ()=>tooltip.style('display','none'));
 
-      // the label — **this was missing before**
+      // the label
       sel.select('text.node-text')
         .attr('x', 10)
         .attr('y', 0)
         .text(lbl);
     });
-      // …after you've drawn nodes, branches, trunks, etc. …
-      
-      g.selectAll('g.node').raise();
-      g.selectAll('rect.stub-zone').raise();
-      g.select('text.tooltip').raise();
+
+    g.selectAll('g.node').raise();
+    g.selectAll('rect.stub-zone').raise();
+    g.select('text.tooltip').raise();
   }
 
   update();
