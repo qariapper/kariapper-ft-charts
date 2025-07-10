@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -ag</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -xy </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -243,10 +243,10 @@
       // for collapsed branches we hit the full 'stub' width;
     //   for true leaves we only need the short 'indent' stub
       .attr('x',      d => d._children
-                        ? d.baseX - stub    // collapsed Gen-2 branch
-                        : d.baseX - indent) // Gen-3 leaf stub
+                        ? alignedX           // ↑ always start at the trunk
+                        : d.baseX - indent)  // Gen-3 leaves still back-to-their-stub
+      .attr('width',  indent)               // stub only needs to be 'indent' wide    //      
       .attr('y',      d => d.x - 12)
-      .attr('width',  d => d._children ? stub : indent)
       .attr('height', 24)
       .on('mouseover', (e,d) => {
         tooltip
@@ -295,7 +295,7 @@
       const sW    = Math.max(80,sLbl.length*charW+20);
       const sX    = d.source.depth===1
                   ? alignedX
-                  : d.source.y + sW/2 + stub + (d.source.depth===0?indent:0);
+                  : d.source.y + sW/2 + stub;  // ↓ no extra indent on root–>Gen-1
       const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
       const tLbl  = d.target.data.name + tIcon + ' ' + d.target.data.id;
       const tW    = Math.max(80,tLbl.length*charW+20);
