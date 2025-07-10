@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - dd </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - ee </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -275,7 +275,7 @@
 
     // --- draw trunks ---
     const trunks = g.selectAll('path.trunk')
-      .data(root.descendants().filter(d ⇒ (d.children && d.children.length) || (d._children && d._children.length)), d=>d.data.id);
+      .data(root.descendants().filter(d => (d.children && d.children.length) || (d._children && d._children.length)), d=>d.data.id);
     trunks.join(
       enter=>enter.append('path').attr('class','trunk'),
       update=>update,
