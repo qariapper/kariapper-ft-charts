@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - H </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - Q </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -245,7 +245,7 @@
       .attr('x',      d => d._children
                         ? alignedX           // ↑ always start at the trunk
                         : d.baseX - indent)  // Gen-3 leaves still back-to-their-stub
-      .attr('width',  indent)               // stub only needs to be 'indent' wide    //      
+      .attr('width', d => d._children ? stub : indent)      
       .attr('y',      d => d.x - 12)
       .attr('height', 24)
       .on('mouseover', (e,d) => {
