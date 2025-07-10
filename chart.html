@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -xy </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - H </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -299,9 +299,7 @@
       const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
       const tLbl  = d.target.data.name + tIcon + ' ' + d.target.data.id;
       const tW    = Math.max(80,tLbl.length*charW+20);
-      const cX    = d.target.depth===2
-                  ? alignedX
-                  : d.target.y + tW/2 + stub;
+      const cX = d.target.y + tW/2 + stub;
       const endX  = (d.target.children?.length) ? cX : sX + indent;
       return `M${sX},${d.target.x}H${endX}`;
     });
