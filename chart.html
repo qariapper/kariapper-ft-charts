@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - R </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - S </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -240,25 +240,23 @@
       update => update,
       exit   => exit.remove()
     )
-      // for collapsed branches we hit the full 'stub' width;
-    //   for true leaves we only need the short 'indent' stub
-      .attr('x',     d => d._children
-                          ? d.baseX - stub    // ← start stub right under the node
-                          : d.baseX - indent) // unchanged for leaves
-      .attr('width', d => d._children ? stub : indent)
-      // …
+      // always 20px of hit-area
+      .attr('x',      d => d.baseX - stub)
+      .attr('width',  stub)
+      .attr('height', vSpacing)             // make sure it covers the row
       .on('mouseover', (e,d) => {
         tooltip
           .text('click to isolate this branch')
-          // likewise shift the tooltip back under the node
-          .attr('x', (d._children ? d.baseX - stub : d.baseX - indent) + 2)
-          // …
+          .attr('x', d.baseX - stub + 4)     // a little padding
+          .attr('y', d.x -  vSpacing/2 - 4)  // just above the node
+          .style('display','block');
       })
       .on('mouseout', () => tooltip.style('display','none'))
       .on('click', (e,d) => {
         e.stopPropagation();
         toggleIsolate(d);
       });
+
 
     // --- draw trunks ---
     const trunks = g.selectAll('path.trunk')
