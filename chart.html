@@ -23,7 +23,8 @@
 
     .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
     .node{cursor:pointer}
-    .stub-zone{fill:transparent;cursor:pointer}
+    /* make sure transparent stub-zones still catch events */
+    .stub-zone{fill:transparent;cursor:pointer;pointer-events:all}
     .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
              stroke-width:.5;pointer-events:none}
     #btnReset{margin-left:6px;font-size:.9em;opacity:.75}
@@ -31,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -zzz</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -Q</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -120,7 +121,6 @@
   }
   window.resetView=centerView;
 
-  // expand / collapse children on box click
   function toggleChildren(event,d){
     if(d.data.gen===2){
       if(d.children){ d._children=d.children; d.children=null; }
@@ -129,10 +129,8 @@
     }
   }
 
-  // isolate click
   function toggleIsolate(d){
     if(d.data._isolated){
-      // undo
       root.descendants().forEach(nd=>nd.data._isolated=false);
       g.selectAll('g.node,path.branch,path.trunk').style('display',null);
       update();
@@ -152,7 +150,6 @@
   function update(){
     tree(root);
 
-    // compute alignedX for gen-2 trunks
     const alignedX = d3.max(
       root.descendants().filter(d=>(d.children||d._children)?.length),
       d=>{
@@ -162,7 +159,6 @@
       }
     );
 
-    // compute baseX for every node, store on d.baseX
     root.descendants().forEach(d=>{
       const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
       const lbl = d.data.name + icon + ' ' + d.data.id;
@@ -180,42 +176,16 @@
       }
     });
 
-    // resize & pan to fit
     const allX= root.descendants().map(d=>d.x),
           allY= root.descendants().map(d=>d.y).concat(alignedX),
           M=100;
-    svg.attr('viewBox',[
-      0,0,
+    svg.attr('viewBox',[ 0,0,
       Math.max(...allY)-Math.min(...allY)+M*2,
       Math.max(...allX)-Math.min(...allX)+M*2
     ].join(' '));
     g.attr('transform',`translate(${M-Math.min(...allY)},${M-Math.min(...allX)})`);
 
-    // ** stub-zones beneath everything **
-    const stubZones = g.selectAll('rect.stub-zone')
-      .data(root.descendants(), d=>d.data.id);
-    stubZones.join(
-      enter => enter.append('rect').attr('class','stub-zone'),
-      upd   => upd,
-      exit  => exit.remove()
-    )
-    .attr('x', d=>d.baseX - indent )
-    .attr('y', d=>d.x - 12 )
-    .attr('width', indent )
-    .attr('height', 24 )
-    .on('mouseover', d=>{
-      tooltip.text('click to isolate this child')
-        .attr('x', d.baseX - indent + 2)
-        .attr('y', d.x - 20)
-        .style('display','block');
-    })
-    .on('mouseout', ()=>tooltip.style('display','none'))
-    .on('click', e=>{
-      e.stopPropagation();
-      toggleIsolate(d3.select(e.currentTarget).datum());
-    });
-
-    // draw trunks
+    // ─── draw trunks ───
     g.selectAll('path.trunk')
       .data(root.descendants().filter(d=>d.children?.length), d=>d.data.id)
       .join(
@@ -233,7 +203,7 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
-    // draw branches
+    // ─── draw branches ───
     g.selectAll('path.branch')
       .data(root.links(), d=>d.target.data.id)
       .join(
@@ -258,31 +228,52 @@
         return `M${sX},${d.target.x}H${endX}`;
       });
 
-    // draw nodes
+    // ─── now stub-zones on top of lines ───
+    g.selectAll('rect.stub-zone')
+      .data(root.descendants(), d=>d.data.id)
+      .join(
+        enter => enter.append('rect').attr('class','stub-zone'),
+        upd   => upd,
+        exit  => exit.remove()
+      )
+      .attr('x', d=>d.baseX - indent )
+      .attr('y', d=>d.x - 12 )
+      .attr('width', indent )
+      .attr('height', 24 )
+      .on('mouseover', d=>{
+        tooltip.text('click to isolate this child')
+          .attr('x', d.baseX - indent + 2)
+          .attr('y', d.x - 20)
+          .style('display','block');
+      })
+      .on('mouseout', ()=>tooltip.style('display','none'))
+      .on('click', e=>{
+        e.stopPropagation();
+        toggleIsolate(d3.select(e.currentTarget).datum());
+      });
+
+    // ─── draw nodes on top ───
     const nodes = g.selectAll('g.node')
       .data(root.descendants(), d=>d.data.id)
       .join(
         en=>{
-          const g= en.append('g').attr('class','node');
-          g.append('rect').attr('class','node-rect');
-          g.append('text');
-          return g;
+          const gg=en.append('g').attr('class','node');
+          gg.append('rect').attr('class','node-rect');
+          gg.append('text');
+          return gg;
         },
         up=>up,
         ex=>ex.remove()
       );
 
     nodes.each(function(d){
-      const n=this;
-      const sel= d3.select(n);
+      const sel= d3.select(this);
       const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
       const lbl = d.data.name + icon + ' ' + d.data.id;
       const w   = Math.max(80,lbl.length*charW+20);
 
-      // position
       sel.attr('transform',`translate(${d.baseX},${d.x})`);
 
-      // box
       sel.select('rect.node-rect')
         .attr('class',`node-rect gen${d.data.gen} ${d.data.gender==='f'?'female':d.data.gender==='m'?'male':''}${d.data.dod?' deceased':''}`)
         .attr('x',0).attr('y',-12).attr('width',w).attr('height',24)
@@ -298,7 +289,6 @@
         })
         .on('mouseout',()=>tooltip.style('display','none'));
 
-      // label
       sel.select('text')
         .attr('class','node-text')
         .attr('x',10).attr('y',0)
@@ -308,7 +298,6 @@
 
   update();
 
-  // toggle Gen-3
   let collapsed=true;
   window.toggleGen3 = ()=>{
     root.descendants().forEach(d=>{
