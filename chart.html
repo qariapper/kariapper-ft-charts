@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - Q </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - R </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -242,20 +242,17 @@
     )
       // for collapsed branches we hit the full 'stub' width;
     //   for true leaves we only need the short 'indent' stub
-      .attr('x',      d => d._children
-                        ? alignedX           // ↑ always start at the trunk
-                        : d.baseX - indent)  // Gen-3 leaves still back-to-their-stub
-      .attr('width', d => d._children ? stub : indent)      
-      .attr('y',      d => d.x - 12)
-      .attr('height', 24)
+      .attr('x',     d => d._children
+                          ? d.baseX - stub    // ← start stub right under the node
+                          : d.baseX - indent) // unchanged for leaves
+      .attr('width', d => d._children ? stub : indent)
+      // …
       .on('mouseover', (e,d) => {
         tooltip
           .text('click to isolate this branch')
-          // mirror the same x we used for the rect
+          // likewise shift the tooltip back under the node
           .attr('x', (d._children ? d.baseX - stub : d.baseX - indent) + 2)
-          .attr('y', d.x - 20)
-          .style('display','block')
-          .raise();
+          // …
       })
       .on('mouseout', () => tooltip.style('display','none'))
       .on('click', (e,d) => {
