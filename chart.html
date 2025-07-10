@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - S </h1>
+  <h1>Kariapper Family Tree – up to 3 generations - T </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -228,28 +228,39 @@
 
     // --- stub-zones under everything ---
     // --- transparent hit-areas over every stub (collapsed OR leaf) ---
+
     const stubs = g.selectAll('rect.stub-zone')
       .data(
-        // every non-root node that has NO visible children
-        root.descendants().filter(d => d.depth > 0 && !d.children),
-        d => d.data.id
-      );
+        // every non-root node that has no *visible* children (either collapsed or a true leaf)
+          root.descendants().filter(d =>
+            d.depth > 0 &&
+            (!d.children || d.children.length === 0)
+          ),
+          d => d.data.id
+        );
+
 
     stubs.join(
       enter => enter.append('rect').attr('class','stub-zone'),
       update => update,
       exit   => exit.remove()
     )
-      // always 20px of hit-area
+    // cover exactly the row where the node sits
       .attr('x',      d => d.baseX - stub)
+      .attr('y',      d => d.x - vSpacing/2) // <-- position vertically
       .attr('width',  stub)
-      .attr('height', vSpacing)             // make sure it covers the row
+      .attr('height', vSpacing)
+    
+    
       .on('mouseover', (e,d) => {
-        tooltip
-          .text('click to isolate this branch')
-          .attr('x', d.baseX - stub + 4)     // a little padding
-          .attr('y', d.x -  vSpacing/2 - 4)  // just above the node
-          .style('display','block');
+      tooltip
+        .text('click to isolate this branch')
+        // center the tooltip over the stub-zone
+        .attr('x', d.baseX - stub/2)
+        // just above the stub-zone
+        .attr('y', d.x - vSpacing/2 - 6)
+        .style('display','block');
+        
       })
       .on('mouseout', () => tooltip.style('display','none'))
       .on('click', (e,d) => {
