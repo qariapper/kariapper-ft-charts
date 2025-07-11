@@ -224,7 +224,7 @@
       Math.max(...allY)-Math.min(...allY)+M*2,
       Math.max(...allX)-Math.min(...allX)+M*2
     ].join(' '));
-    g.attr('transform',translate(${M-Math.min(...allY)},${M-Math.min(...allX)}));
+    g.attr('transform', `translate(${M - Math.min(...allY)},${M - Math.min(...allX)})`);
 
     // --- stub-zones under everything ---
     const stubs = g.selectAll('rect.stub-zone')
