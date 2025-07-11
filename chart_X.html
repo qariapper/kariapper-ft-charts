@@ -221,10 +221,7 @@
           tooltip.text(t).attr('x',baseX+indent+5).attr('y',d.x-18).style('display','block');
         }).on('mouseout',()=>tooltip.style('display','none'));
       });
-        // …after you've drawn nodes, branches, trunks, etc. …
 
-    // bring only the transparent stub-zones on top so they can catch mouse events
-    g.selectAll('rect.stub-zone').raise();  
   }
 
   update();
