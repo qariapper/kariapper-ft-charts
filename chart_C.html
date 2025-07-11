@@ -294,7 +294,7 @@
                   ? alignedX
                   : d.target.y + tW/2 + stub;
       const endX  = (d.target.children?.length) ? cX : sX + indent;
-      return M${sX},${d.target.x}H${endX};
+      return `M${sX},${d.target.x}H${endX}`;
     });
 
     // --- draw nodes ---
