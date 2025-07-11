@@ -320,9 +320,10 @@
       sel.attr('transform', `translate(${d.baseX},${d.x})`);
       // the rectangle
       sel.select('rect.node-rect')
+      
         .attr(
           'class',
-          node-rect gen${d.data.gen} ${d.data.gender==='f'?'female':d.data.gender==='m'?'male':''}${d.data.dod?' deceased':''}
+          `node-rect gen${d.data.gen} ${d.data.gender==='f'?'female':d.data.gender==='m'?'male':''}${d.data.dod?' deceased':''}`
         )
         .attr('x', 0)
         .attr('y', -12)
