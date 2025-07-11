@@ -320,7 +320,7 @@
       sel.attr('transform', `translate(${d.baseX},${d.x})`);
       // the rectangle
       sel.select('rect.node-rect')
-      
+
         .attr(
           'class',
           `node-rect gen${d.data.gen} ${d.data.gender==='f'?'female':d.data.gender==='m'?'male':''}${d.data.dod?' deceased':''}`
@@ -335,7 +335,7 @@
         })
         .on('mouseover', ()=>{
           const txt = d.data.spouse
-                    ? Spouse(s): ${d.data.spouse}
+                    ? `Spouse(s): ${d.data.spouse}`
                     : 'Spouse(s): none';
           tooltip.text(txt)
             .attr('x', d.baseX + 5)
