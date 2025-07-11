@@ -59,9 +59,9 @@
 <script>
 (async function () {
   const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-  const raw = await fetch(
-    https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json
-  ).then(r => r.text());
+  const raw=await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`)
+  .then(r=>r.text());
+
   const json = JSON.parse(raw.slice(raw.indexOf('(') + 1, raw.lastIndexOf(')')));
   const headers = json.table.cols.map(c => c.label);
   const rows = json.table.rows;
