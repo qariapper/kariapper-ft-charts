@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -yyyy</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -jjj</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -317,8 +317,7 @@
       const w    = Math.max(80,lbl.length*charW+20);
 
       // position the group
-      sel.attr('transform', translate(${d.baseX},${d.x}));
-
+      sel.attr('transform', `translate(${d.baseX},${d.x})`);
       // the rectangle
       sel.select('rect.node-rect')
         .attr(
