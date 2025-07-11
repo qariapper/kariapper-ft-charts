@@ -269,7 +269,7 @@
       const px   = d.y + w/2 + (d.depth===0?indent:0);
       const tx   = d.depth===1 ? alignedX : px + stub;
       const ys   = d.children.map(c=>c.x);
-      return M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)};
+     return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
     });
 
     // --- draw branches ---
