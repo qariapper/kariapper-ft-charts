@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations X</h1>
+  <h1>Kariapper Family Tree – up to 3 generations Xuu</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -221,6 +221,10 @@
           tooltip.text(t).attr('x',baseX+indent+5).attr('y',d.x-18).style('display','block');
         }).on('mouseout',()=>tooltip.style('display','none'));
       });
+        // …after you've drawn nodes, branches, trunks, etc. …
+
+    // bring only the transparent stub-zones on top so they can catch mouse events
+    g.selectAll('rect.stub-zone').raise();  
   }
 
   update();
