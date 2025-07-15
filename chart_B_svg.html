@@ -5,10 +5,6 @@
   <title>Kariapper Family Tree</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://d3js.org/d3.v7.min.js"></script>
-
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-
   <style>
     body { margin: 0; font-family: "Segoe UI", sans-serif; }
     h1   { text-align: center; margin: 12px 0; }
@@ -16,16 +12,13 @@
     #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
     svg { display: block; width: 100%; height: auto; }
 
-    .trunk,
-    .branch{
-      fill:none;
-      stroke:#888;
-      stroke-width:1.5px;
-      stroke-linecap:round;
+    .trunk, .branch {
+      fill: none;
+      stroke: #888;
+      stroke-width: 1.5px;
+      stroke-linecap: round;
+      pointer-events: none;
     }
-    /* ⬇ disable clicks on the main branch lines */
-    .branch { pointer-events: none; } 
-
     .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
     .gen1{fill:#eceff4;stroke:#4c566a}
     .gen2{fill:#e5e9f0;stroke:#3b4252}
@@ -34,21 +27,24 @@
     .male  {fill:#d0e4f7!important}
     .deceased { stroke: green !important; }
 
-    .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
+    .node-text {
+      pointer-events: none;
+      text-anchor: start;
+      dominant-baseline: central;
+      fill: #000;
+      font-size: 13px;
+    }
     .node{cursor:pointer}
+    .stub-zone{fill: rgba(0,0,0,0.001);cursor:pointer}
     .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
              stroke-width:.5;pointer-events:none}
-    /* stub‐hit zones */
-    .stub-hit { fill:transparent; cursor:pointer; }
-    /* highlight the branch when isolated */
-    .branch.isolated { stroke:red!important; }
-
     #btnReset{margin-left:6px;font-size:.9em;opacity:.75}
     #btnZoomIn{margin-left:20px;font-size:.9em;opacity:.75}
+    #btnSaveSVG{margin-left:20px;font-size:.9em;opacity:.85}
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - SVG</h1>
+  <h1>Kariapper Family Tree – up to 3 generations – SVG1</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -60,61 +56,67 @@
 
 <script>
 (async function () {
-  const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
-  const raw=await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`)
-                  .then(r=>r.text());
-  const json=JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
-  const headers=json.table.cols.map(c=>c.label);
-  const rows=json.table.rows;
+  const sheetID = '1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
+  const raw = await fetch(
+    `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`
+  ).then(r => r.text());
+  const json = JSON.parse(raw.slice(raw.indexOf('(') + 1, raw.lastIndexOf(')')));
+  const headers = json.table.cols.map(c => c.label);
+  const rows = json.table.rows;
 
-  const idIdx    = headers.findIndex(h=>/\(dID\)$/i.test(h));
-  const nameIdx  = headers.findIndex(h=>h.trim()==='Full Name');
-  const genIdx   = headers.findIndex(h=>/^generation$/i.test(h));
-  const spouseIdx= headers.findIndex(h=>h.trim().toLowerCase().startsWith('spouse'));
-  const genderIdx= headers.findIndex(h=>h.trim().toLowerCase()==='gender');
-  const dodIdx   = 12; // Column M
+  const idIdx      = headers.findIndex(h => /\(dID\)$/i.test(h));
+  const nameIdx    = headers.findIndex(h => h.trim() === 'Full Name');
+  const genIdx     = headers.findIndex(h => /^generation$/i.test(h));
+  const spouseIdx  = headers.findIndex(h => h.trim().toLowerCase().startsWith('spouse'));
+  const genderIdx  = headers.findIndex(h => h.trim().toLowerCase() === 'gender');
+  const dodIdx     = 12; // manually hard-coded to M
 
-  if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
-    return void(document.getElementById('tree_div').textContent='❌ missing columns');
+  if ([idIdx, nameIdx, genIdx, spouseIdx].some(i => i < 0)) {
+    document.getElementById('tree_div').textContent = '❌ missing columns';
+    return;
   }
 
-  const flat=rows.map(r=>{
-    const id     = r.c[idIdx]?.v||'';
-    const name   = r.c[nameIdx]?.v||'';
-    const gen    = +r.c[genIdx]?.v;
-    const spouse = r.c[spouseIdx]?.v||'';
-    const gRaw   = genderIdx>=0?r.c[genderIdx]?.v?.toLowerCase():'';
-    const gender = gRaw.startsWith('f')?'f':gRaw.startsWith('m')?'m':'';
-    const dod    = r.c[dodIdx]?.v||'';
-    return {id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
+  const flat = rows.map(r => {
+    const id      = r.c[idIdx]?.v || '';
+    const name    = r.c[nameIdx]?.v || '';
+    const gen     = +r.c[genIdx]?.v;
+    const spouse  = r.c[spouseIdx]?.v || '';
+    const graw    = genderIdx >= 0 ? (r.c[genderIdx]?.v || '').toLowerCase() : '';
+    const gender  = graw.startsWith('f') ? 'f' : graw.startsWith('m') ? 'm' : '';
+    const dod     = r.c[dodIdx]?.v || '';
+    const parent  = id.includes('.') ? id.replace(/\.[^.]+$/, '') : '';
+
+    return { id, name, gen, spouse, gender, dod, parent, children: [] };
   })
-  .filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
+  .filter(d => d.id && d.name && Number.isFinite(d.gen) && d.gen <= 3);
 
-  const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
-  flat.forEach(d=>{ if(d.parent&&byId[d.parent]) byId[d.parent].children.push(d); });
-  const rootData=byId['ALK'];
-  if(!rootData){
-    return void(document.getElementById('tree_div').textContent='❌ root ALK not found');
+  const byId = Object.fromEntries(flat.map(d => [d.id, d]));
+  flat.forEach(d => {
+    if (d.parent && byId[d.parent]) byId[d.parent].children.push(d);
+  });
+
+  const rootData = byId['ALK'];
+  if (!rootData) {
+    document.getElementById('tree_div').textContent = '❌ root ALK not found';
+    return;
   }
 
-  const isolationStates = {};  // parentId → childId
+  const charW    = 9,
+        indent   = 12,
+        stub     = 20,
+        maxLabelLen = d3.max(flat, d =>
+          (d.name + (d.gender==='f'?' ♀':d.gender==='m'?' ♂':'') + ' ' + d.id).length
+        ),
+        hSpacing = Math.max(180, maxLabelLen * charW + 50),
+        vSpacing = 40;
 
-  const charW     = 9;
-  const maxLabelLen = d3.max(flat,d=>{
-    const icon = d.gender==='f'?' ♀':d.gender==='m'?' ♂':'';
-    return (d.name + icon + ' ' + d.id).length;
-  });
-  const hSpacing  = Math.max(180, maxLabelLen*charW + 50);
-  const vSpacing  = 40;
-  const stub      = 20;
-  const indent    = 12;
+  const root = d3.hierarchy(rootData, d => d.children);
+  const tree = d3.tree().nodeSize([vSpacing, hSpacing]);
+  window.root = root; // <--- for Save SVG button!
 
-  const root  = d3.hierarchy(rootData,d=>d.children);
-  const tree  = d3.tree().nodeSize([vSpacing,hSpacing]);
-
-  // collapse gen-2 by default
-  root.descendants().forEach(d=>{
-    if(d.data.gen===2 && d.children){
+  // collapse gen-2 on load
+  root.descendants().forEach(d => {
+    if (d.data.gen === 2 && d.children) {
       d._children = d.children;
       d.children  = null;
     }
@@ -124,259 +126,251 @@
                    .attr('preserveAspectRatio','xMinYMin meet');
   const gZoom  = svg.append('g');
   const g      = gZoom.append('g');
-  const tooltip= g.append('text').attr('class','tooltip').style('display','none');
+  const tooltip = g.append('text')
+                   .attr('class','tooltip')
+                   .style('display','none');
 
-  const zoomBehavior=d3.zoom()
-      .scaleExtent([0.5,2])
-      .on('zoom',({transform})=>gZoom.attr('transform',transform));
-  svg.call(zoomBehavior);
-
-  const zoomStep=1.25;
-  d3.select('#btnZoomIn' ).on('click',()=>svg.transition().call(zoomBehavior.scaleBy, zoomStep));
-  d3.select('#btnZoomOut').on('click',()=>svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
-  d3.select('#btnReset'  ).on('click',()=>svg.transition().call(zoomBehavior.transform, d3.zoomIdentity));
+  // --- zoom controls ---
+  const zoom = d3.zoom()
+                 .scaleExtent([0.5,2])
+                 .on('zoom', ({transform}) => gZoom.attr('transform', transform));
+  svg.call(zoom);
+  d3.select('#btnZoomIn').on('click',  ()=>svg.transition().call(zoom.scaleBy,1.25));
+  d3.select('#btnZoomOut').on('click', ()=>svg.transition().call(zoom.scaleBy,1/1.25));
+  d3.select('#btnReset').on('click',   ()=>svg.transition().call(zoom.transform, d3.zoomIdentity));
   window.addEventListener('keydown', e=>{
-    if(e.target!==document.body) return;
-    if(e.key==='+'||e.key==='=') svg.transition().call(zoomBehavior.scaleBy, zoomStep);
-    if(e.key==='-'||e.key==='_') svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep);
-    if(e.key==='0')              svg.transition().call(zoomBehavior.transform, d3.zoomIdentity);
+    if (e.target !== document.body) return;
+    if (e.key==='+'||e.key==='=') svg.transition().call(zoom.scaleBy,1.25);
+    if (e.key==='-'||e.key==='_') svg.transition().call(zoom.scaleBy,1/1.25);
+    if (e.key==='0')              svg.transition().call(zoom.transform, d3.zoomIdentity);
   });
-  function centerView(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
+  function centerView(){
+    svg.transition().duration(0).call(zoom.transform, d3.zoomIdentity);
+  }
   window.resetView = centerView;
 
-  function toggle(_,d){
-    if(d.data.gen===2){
-      if(d.children){ d._children=d.children; d.children=null; }
-      else         { d.children=d._children; d._children=null; }
+  // expand/collapse gen-2 children
+  function toggleChildren(event,d){
+    if (d.data.gen===2) {
+      if (d.children) { d._children = d.children; d.children = null; }
+      else            { d.children  = d._children; d._children = null; }
       update();
       centerView();
     }
   }
 
-  function update(){
-    // apply isolation: hide/show siblings via CSS, we do NOT mutate the data tree
-    // (handled below in the stub-click handler)
+  // isolate a single sibling branch
+  function toggleIsolate(d){
+    if (d.data._isolated) {
+      root.descendants().forEach(n=>n.data._isolated=false);
+      g.selectAll('g.node,path.branch,path.trunk').style('display', null);
+      update();
+    } else {
+      const siblings = (d.parent && d.parent.children) || [];
+      const hideSet  = new Set();
+      siblings.forEach(s=>{
+        if (s!==d) s.descendants().forEach(n=>hideSet.add(n.data.id));
+      });
+      g.selectAll('g.node').filter(n=>hideSet.has(n.data.id)).style('display','none');
+      g.selectAll('path.branch').filter(b=>hideSet.has(b.target.data.id)).style('display','none');
+      g.selectAll('path.trunk').filter(t=>hideSet.has(t.data.id)).style('display','none');
+      d.data._isolated = true;
+    }
+  }
 
-    // compute layout
+  function update(){
     tree(root);
 
-    // figure where gen-1 kid trunks line up
+    // align all generation-2 trunks to the same x
     const alignedX = d3.max(
-      root.descendants().filter(d=>(d.children&&d.children.length)||(d._children&&d._children.length)),
-      d=>{
-        const icon  = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
-        const label = d.data.name + icon + ' ' + d.data.id;
-        return d.y + Math.max(80,label.length*charW+20)/2 + stub;
+      root.descendants().filter(d=>(d.children||d._children)?.length),
+      d => {
+        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+        const lbl  = d.data.name + icon + ' ' + d.data.id;
+        return d.y + Math.max(80, lbl.length*charW+20)/2 + stub;
       }
     );
 
-    // size SVG to fit
-    const xs = root.descendants().map(d=>d.x);
-    const ys = root.descendants().map(d=>d.y).concat(alignedX);
-    const M  = 100;
-    svg.attr('viewBox',[0,0,
-      Math.max(...ys)-Math.min(...ys)+M*2,
-      Math.max(...xs)-Math.min(...xs)+M*2
+    // compute a baseX for every node
+    root.descendants().forEach(d=>{
+      const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+      const lbl  = d.data.name + icon + ' ' + d.data.id;
+      const w    = Math.max(80,lbl.length*charW+20);
+
+      if (d.parent) {
+        const p   = d.parent;
+        const pic = p.data.gender==='f'?' ♀':p.data.gender==='m'?' ♂':'';
+        const plbl= p.data.name + pic + ' ' + p.data.id;
+        const pw  = Math.max(80,plbl.length*charW+20);
+        const px  = p.depth===1
+                  ? alignedX
+                  : p.y + pw/2 + stub + (p.depth===0?indent:0);
+        const ex  = d.depth===1 ? indent : 0;
+        d.baseX   = px + indent + ex;
+      } else {
+        // root: center under its own y
+        d.baseX = d.y - w/2;
+      }
+    });
+
+    // resize & pan to fit
+    const allX = root.descendants().map(d=>d.x);
+    const allY = root.descendants().map(d=>d.y).concat(alignedX);
+    const M    = 100;
+    svg.attr('viewBox',[
+      0,0,
+      Math.max(...allY)-Math.min(...allY)+M*2,
+      Math.max(...allX)-Math.min(...allX)+M*2
     ].join(' '));
-    g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
+    g.attr('transform',`translate(${M-Math.min(...allY)},${M-Math.min(...allX)})`);
 
-    // draw trunks
-    g.selectAll('path.trunk')
-      .data(root.descendants().filter(d=>d.children?.length), d=>d.data.id)
-      .join(
-        enter=>enter.append('path').attr('class','trunk'),
-        update=>update,
-        exit=>exit.remove()
-      )
-      .attr('d',d=>{
-        const icon  = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
-        const label = d.data.name + icon + ' ' + d.data.id;
-        const w = Math.max(80,label.length*charW+20);
-        const px= d.y + w/2 + (d.depth===0?indent:0);
-        const tx= d.depth===1 ? alignedX : px + stub;
-        const ys= d.children.map(c=>c.x);
-        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-      });
+    // --- stub-zones under everything ---
+    const stubs = g.selectAll('rect.stub-zone')
+      .data(
+        // every non-root node that has NO visible children
+        root.descendants().filter(d => d.depth > 0 && !d.children),
+        d => d.data.id
+      );
+    stubs.join(
+      enter => enter.append('rect').attr('class','stub-zone'),
+      update => update,
+      exit   => exit.remove()
+    )
+    .attr('x', d=>d.baseX - 12)
+    .attr('y', d=>d.x - 12)
+    .attr('width', 12)
+    .attr('height', 24)
+    .on('mouseover', (e,d) => {
+      tooltip
+        .text('click to isolate this branch')
+        .attr('x', d.baseX - 12 + 2)
+        .attr('y', d.x - 20)
+        .style('display','block')
+        .raise();
+    })
+    .on('mouseout', () => tooltip.style('display','none'))
+    .on('click', (e,d) => {
+      e.stopPropagation();
+      toggleIsolate(d);
+    });
 
-    // draw branch lines
-    const branchSel = g.selectAll('path.branch')
-      .data(root.links(), d=>d.target.data.id)
-      .join(
-        enter=>enter.append('path').attr('class','branch'),
-        update=>update,
-        exit=>exit.remove()
-      )
-      .attr('d',d=>{
-        // source
-        const sIcon  = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
-        const sLabel = d.source.data.name + sIcon + ' ' + d.source.data.id;
-        const srcW   = Math.max(80,sLabel.length*charW+20);
-        const parentX= d.source.depth===1
-          ? alignedX
-          : d.source.y + srcW/2 + stub + (d.source.depth===0?indent:0);
-
-        // target
-        const tIcon  = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
-        const tLabel = d.target.data.name + tIcon + ' ' + d.target.data.id;
-        const trgW   = Math.max(80,tLabel.length*charW+20);
-        const childTrunkX = d.target.depth===2
-          ? alignedX
-          : d.target.y + trgW/2 + stub;
-        const hasKids= !!(d.target.children && d.target.children.length);
-        const endX   = hasKids ? childTrunkX : parentX + indent;
-
-        return `M${parentX},${d.target.x}H${endX}`;
-      });
-
-    // ⬇ transparent hit‐zones just over the last 12px of each branch (left stub)
-    const hits = g.selectAll('rect.stub-hit')
-      .data(root.links(), d=>d.target.data.id);
-
-    hits.join(
-      enter => enter.append('rect')
-        .attr('class','stub-hit')
-        .on('mouseover',(event,d)=>{
-          // position tooltip right above the target box
-          const tY = d.target.x - 14;   // 14px above center
-          const tX = (()=>{
-            // recompute baseX as in node‐placement below
-            const icon  = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
-            const label = d.target.data.name + icon + ' ' + d.target.data.id;
-            const w     = Math.max(80,label.length*charW+20);
-            const srcW  = d.source.depth===1
-              ? alignedX
-              : d.source.y + Math.max(80,(d.source.data.name+(d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'')+' '+d.source.data.id).length*charW+20)/2 + stub + (d.source.depth===0?indent:0);
-            const extra = d.target.depth===1?indent:0;
-            return srcW + indent + extra + 5;
-          })();
-          tooltip.text('click to isolate this child')
-                 .attr('x', tX)
-                 .attr('y', tY)
-                 .style('display','block');
-        })
-        .on('mouseout', ()=>tooltip.style('display','none'))
-        .on('click',(event,d)=>{
-          const pid = d.source.data.id;
-          const cid = d.target.data.id;
-          // un‐isolate if same stub clicked twice
-          if(isolationStates[pid]===cid){
-            delete isolationStates[pid];
-            // restore siblings & branch color
-            g.selectAll('g.node')
-             .filter(nd=>nd.parent && nd.parent.data.id===pid)
-             .style('display',null);
-            branchSel
-             .filter(br=>br.source.data.id===pid)
-             .style('display',null)
-             .classed('isolated',false);
-          } else {
-            isolationStates[pid]=cid;
-            // hide all siblings under that same parent
-            g.selectAll('g.node')
-             .filter(nd=>nd.parent && nd.parent.data.id===pid && nd.data.id!==cid)
-             .style('display','none');
-            // highlight only this branch
-            branchSel
-             .filter(br=>br.source.data.id===pid && br.target.data.id===cid)
-             .classed('isolated',true);
-            // hide the other branch‐lines to siblings
-            branchSel
-             .filter(br=>br.source.data.id===pid && br.target.data.id!==cid)
-             .style('display','none');
-          }
-        }),
+    // --- draw trunks ---
+    const trunks = g.selectAll('path.trunk')
+      .data(root.descendants().filter(d=>d.children?.length), d=>d.data.id);
+    trunks.join(
+      enter=>enter.append('path').attr('class','trunk'),
       update=>update,
       exit=>exit.remove()
     )
-    .attr('width', indent)      // only 12px wide stub
-    .attr('height', 24)         // matches box height
-    .attr('x', d=>{
-      // compute endX exactly as in branch‐d calculation:
-      const sIcon   = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
-      const sLabel  = d.source.data.name + sIcon + ' ' + d.source.data.id;
-      const srcW    = Math.max(80,sLabel.length*charW+20);
-      const parentX = d.source.depth===1
-        ? alignedX
-        : d.source.y + srcW/2 + stub + (d.source.depth===0?indent:0);
+    .attr('d', d=>{
+      const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+      const lbl  = d.data.name + icon + ' ' + d.data.id;
+      const w    = Math.max(80,lbl.length*charW+20);
+      const px   = d.y + w/2 + (d.depth===0?indent:0);
+      const tx   = d.depth===1 ? alignedX : px + stub;
+      const ys   = d.children.map(c=>c.x);
+      return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
+    });
 
-      const tIcon   = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
-      const tLabel  = d.target.data.name + tIcon + ' ' + d.target.data.id;
-      const trgW    = Math.max(80,tLabel.length*charW+20);
-      const childTrunkX = d.target.depth===2
-        ? alignedX
-        : d.target.y + trgW/2 + stub;
-      const hasKids = !!(d.target.children && d.target.children.length);
-      const endX    = hasKids ? childTrunkX : parentX + indent;
-      return endX - indent;     // stub zone starts just left of box
-    })
-    .attr('y', d=>d.target.x - 12); // vertically centered
+    // --- draw branches ---
+    const branches = g.selectAll('path.branch')
+      .data(root.links(), d=>d.target.data.id);
+    branches.join(
+      enter=>enter.append('path').attr('class','branch'),
+      update=>update,
+      exit=>exit.remove()
+    )
+    .attr('d', d=>{
+      const sIcon = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
+      const sLbl  = d.source.data.name + sIcon + ' ' + d.source.data.id;
+      const sW    = Math.max(80,sLbl.length*charW+20);
+      const sX    = d.source.depth===1
+                  ? alignedX
+                  : d.source.y + sW/2 + stub + (d.source.depth===0?indent:0);
+      const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
+      const tLbl  = d.target.data.name + tIcon + ' ' + d.target.data.id;
+      const tW    = Math.max(80,tLbl.length*charW+20);
+      const cX    = d.target.depth===2
+                  ? alignedX
+                  : d.target.y + tW/2 + stub;
+      const endX  = (d.target.children?.length) ? cX : sX + indent;
+      return `M${sX},${d.target.x}H${endX}`;
+    });
 
-    // draw nodes
-    g.selectAll('g.node')
-      .data(root.descendants(), d=>d.data.id)
-      .join(
-        enter=>{
-          const n=enter.append('g').attr('class','node').on('click',toggle);
-          n.append('rect');
-          n.append('text');
-          return n;
-        },
-        update=>update,
-        exit=>exit.remove()
-      )
-      .each(function(d){
-        const n = d3.select(this);
-        const icon  = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
-        const label = d.data.name + icon + ' ' + d.data.id;
-        const w     = Math.max(80,label.length*charW+20);
+    // --- draw nodes ---
+    const nodes = g.selectAll('g.node')
+      .data(root.descendants(), d=>d.data.id);
+    nodes.join(
+      enter=>{
+        const nodeG = enter.append('g').attr('class','node');
+        nodeG.append('rect').attr('class','node-rect');
+        nodeG.append('text').attr('class','node-text');
+        return nodeG;
+      },
+      update=>update,
+      exit=>exit.remove()
+    )
+    .each(function(d){
+      const sel  = d3.select(this);
+      const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+      const lbl  = d.data.name + icon + ' ' + d.data.id;
+      const w    = Math.max(80,lbl.length*charW+20);
 
-        // compute baseX exactly as before
-        const parentX = d.parent
-          ? (
-              d.parent.depth===1
-                ? alignedX
-                : d.parent.y + Math.max(80,(
-                   d.parent.data.name +
-                   (d.parent.data.gender==='f'?' ♀':d.parent.data.gender==='m'?' ♂':'') +
-                   ' '+d.parent.data.id
-                  ).length*charW+20)/2 + stub
-            )
-          : d.y - w/2;
+      // position the group
+      sel.attr('transform', `translate(${d.baseX},${d.x})`);
 
-        const extra = d.depth===1?indent:0;
-        const genderClass = d.data.gender==='f'?'female':d.data.gender==='m'?'male':'';
-        const deathClass  = d.data.dod ? ' deceased' : '';
-
-        n.attr('transform',`translate(${parentX+indent+extra},${d.x})`);
-        n.select('rect')
-         .attr('class',`node-rect gen${d.data.gen} ${genderClass}${deathClass}`)
-         .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
-        n.select('text')
-         .attr('class','node-text').attr('x',10).attr('y',0).text(label);
-
-        n.on('mouseover',()=>{
-          const info = d.data.spouse
-                     ? `Spouse(s): ${d.data.spouse}`
-                     : 'Spouse(s): none';
-          tooltip.text(info)
-                 .attr('x', parentX+indent+5)
-                 .attr('y', d.x - 18)
-                 .style('display','block');
+      // the rectangle
+      sel.select('rect.node-rect')
+        .attr(
+          'class',
+          `node-rect gen${d.data.gen} ${d.data.gender==='f'?'female':d.data.gender==='m'?'male':''}${d.data.dod?' deceased':''}`
+        )
+        .attr('x', 0)
+        .attr('y', -12)
+        .attr('width', w)
+        .attr('height', 24)
+        .on('click', e=>{
+          e.stopPropagation();
+          toggleChildren(e,d);
         })
-        .on('mouseout',()=>tooltip.style('display','none'));
-      });
+        .on('mouseover', ()=>{
+          const txt = d.data.spouse
+                    ? `Spouse(s): ${d.data.spouse}`
+                    : 'Spouse(s): none';
+          tooltip.text(txt)
+            .attr('x', d.baseX + 5)
+            .attr('y', d.x - 20)
+            .style('display','block');
+        })
+        .on('mouseout', ()=>tooltip.style('display','none'));
+
+      // the label
+      sel.select('text.node-text')
+        .attr('x', 10)
+        .attr('y', 0)
+        .text(lbl);
+    });
+
+    g.selectAll('g.node').raise();
+    g.selectAll('rect.stub-zone').raise();
+    g.select('text.tooltip').raise();
   }
 
-  // initial render
+  window.update = update; // <---- expose for Save SVG (to expand tree if needed)
   update();
 
-  // Generation-3 toggle
-  let collapsed=true;
-  window.toggleGen3 = function(){
+  // --- toggle 3rd generation on/off ---
+  let collapsed = true;
+  window.toggleGen3 = ()=>{
     root.descendants().forEach(d=>{
-      if(d.data.gen===2){
-        if(collapsed && d._children){ d.children=d._children; d._children=null; }
-        else if(!collapsed && d.children){ d._children=d.children; d.children=null; }
+      if (d.data.gen === 2) {
+        if (collapsed && d._children) {
+          d.children = d._children;
+          d._children = null;
+        } else if (!collapsed && d.children) {
+          d._children = d.children;
+          d.children = null;
+        }
       }
     });
     collapsed = !collapsed;
@@ -384,46 +378,38 @@
     centerView();
   };
 
-})();
-// ---- SVG Download Function ----
-document.getElementById('btnSaveSVG').onclick = function () {
-  // Fully expand tree before saving
-  root.descendants().forEach(d => {
-    if (d._children) {
-      d.children = d._children;
-      d._children = null;
+  // --- SAVE SVG Button Handler ---
+  document.getElementById('btnSaveSVG').onclick = function () {
+    // Optionally, expand all gen-2
+    root.descendants().forEach(d=>{
+      if (d.data.gen === 2 && d._children) {
+        d.children = d._children;
+        d._children = null;
+      }
+    });
+    collapsed = false;
+    window.update();
+
+    // Serialize the SVG and download
+    const svgElem = document.querySelector("#tree_div svg");
+    const serializer = new XMLSerializer();
+    let svgContent = serializer.serializeToString(svgElem);
+
+    // Add XML declaration and proper namespaces for SVG
+    if (!svgContent.startsWith('<?xml')) {
+      svgContent = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgContent;
     }
-  });
-  update();
+    // Download
+    const blob = new Blob([svgContent], {type: "image/svg+xml"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "Kariapper-tree.svg";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>document.body.removeChild(a), 200);
+  };
 
-  // Grab the SVG element
-  const svgElement = document.querySelector('#tree_div svg');
-  if (!svgElement) {
-    alert('SVG not found!');
-    return;
-  }
-
-  // Clone it to avoid altering the on-screen chart
-  const clone = svgElement.cloneNode(true);
-
-  // Optional: Set white background for the SVG
-  let vb = clone.getAttribute('viewBox');
-  let [x, y, w, h] = vb ? vb.split(' ') : [0,0,1200,800];
-  let rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
-  rect.setAttribute('x', x); rect.setAttribute('y', y);
-  rect.setAttribute('width', w); rect.setAttribute('height', h);
-  rect.setAttribute('fill', 'white');
-  clone.insertBefore(rect, clone.firstChild);
-
-  // Serialize SVG to string
-  let serializer = new XMLSerializer();
-  let source = serializer.serializeToString(clone);
-
-  // Blob for FileSaver
-  let blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
-  saveAs(blob, 'Kariapper-tree.svg');
-};
-
+})();
 </script>
 </body>
 </html>
