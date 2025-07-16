@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -3</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -4</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -249,55 +249,46 @@
   };
 })();
 </script>
-</body>
+
 <script>
 document.getElementById('save-svg-btn').onclick = function () {
-  // Get the SVG element
   const svg = document.querySelector('#tree_div svg');
   if (!svg) {
     alert('No SVG tree found.');
     return;
   }
 
-  // Clone SVG for manipulation
+  // Copy only the SVG-relevant styles (edit if you want to fine-tune)
+  const css = `
+    .trunk, .branch { fill: none; stroke: #888; stroke-width: 1.5px; stroke-linecap: round; }
+    .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
+    .gen1 { fill: #eceff4; stroke: #4c566a; }
+    .gen2 { fill: #e5e9f0; stroke: #3b4252; }
+    .gen3 { fill: #d8dee9; stroke: #2e3440; }
+    .female { fill: #fbd3e0 !important; }
+    .male { fill: #d0e4f7 !important; }
+    .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
+    .node { cursor: pointer; }
+    .tooltip { paint-order: stroke; font: 13px sans-serif; fill: #333; stroke: #fff; stroke-width: .5; pointer-events: none; }
+  `;
+
+  // Clone the SVG and inject styles
   const clone = svg.cloneNode(true);
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.setAttribute('type', 'text/css');
+  style.innerHTML = "<![CDATA[\n" + css + "\n]]>";
+  clone.insertBefore(style, clone.firstChild);
 
-  // Inline computed styles for all elements inside the SVG
-  function inlineStyles(el) {
-    const computed = getComputedStyle(el);
-    let styleStr = '';
-    for (let i = 0; i < computed.length; i++) {
-      const key = computed[i];
-      // Only include style rules relevant for SVG (skip browser defaults)
-      if (
-        key.startsWith('font') ||
-        key.startsWith('fill') ||
-        key.startsWith('stroke') ||
-        key.startsWith('color') ||
-        key.startsWith('opacity') ||
-        key === 'display'
-      ) {
-        styleStr += `${key}:${computed.getPropertyValue(key)};`;
-      }
-    }
-    if (styleStr) el.setAttribute('style', styleStr);
-    for (const child of el.children) inlineStyles(child);
-  }
-  inlineStyles(clone);
-
-  // Set necessary SVG attributes for standalone files
+  // Set basic SVG attributes
   clone.setAttribute('version', '1.1');
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-  // Serialize to string
+  // Serialize and download
   const serializer = new XMLSerializer();
   let source = serializer.serializeToString(clone);
-
-  // Add XML declaration
   source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
 
-  // Trigger download
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
   const link = document.createElement('a');
   link.href = url;
@@ -307,4 +298,7 @@ document.getElementById('save-svg-btn').onclick = function () {
   document.body.removeChild(link);
 };
 </script>
+
+
+</body>
 </html>
