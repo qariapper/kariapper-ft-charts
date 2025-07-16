@@ -32,12 +32,15 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -1</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -2</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
   <button id="btnZoomOut">－</button>
   <button id="btnReset">RESET VIEW</button>
+  <button id="save-svg-btn" style="padding:6px 18px; font-size:16px;">
+  💾 Save SVG </button>
+
 </div>
 
 <div id="refresh-row" style="text-align: center; margin-top: 8px;">
@@ -246,5 +249,63 @@
   };
 })();
 </script>
+<script>
+document.getElementById('save-svg-btn').onclick = function () {
+  // Get the SVG element
+  const svg = document.querySelector('#tree_div svg');
+  if (!svg) {
+    alert('No SVG tree found.');
+    return;
+  }
+
+  // Clone SVG for manipulation
+  const clone = svg.cloneNode(true);
+
+  // Inline computed styles for all elements inside the SVG
+  function inlineStyles(el) {
+    const computed = getComputedStyle(el);
+    let styleStr = '';
+    for (let i = 0; i < computed.length; i++) {
+      const key = computed[i];
+      // Only include style rules relevant for SVG (skip browser defaults)
+      if (
+        key.startsWith('font') ||
+        key.startsWith('fill') ||
+        key.startsWith('stroke') ||
+        key.startsWith('color') ||
+        key.startsWith('opacity') ||
+        key === 'display'
+      ) {
+        styleStr += `${key}:${computed.getPropertyValue(key)};`;
+      }
+    }
+    if (styleStr) el.setAttribute('style', styleStr);
+    for (const child of el.children) inlineStyles(child);
+  }
+  inlineStyles(clone);
+
+  // Set necessary SVG attributes for standalone files
+  clone.setAttribute('version', '1.1');
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+  // Serialize to string
+  const serializer = new XMLSerializer();
+  let source = serializer.serializeToString(clone);
+
+  // Add XML declaration
+  source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
+
+  // Trigger download
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'family-tree.svg';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+</script>
+
 </body>
 </html>
