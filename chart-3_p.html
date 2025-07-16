@@ -14,7 +14,7 @@
 
     .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
 
-    .node-rect{rx:4;ry:4}
+    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
     .gen1{fill:#eceff4;stroke:#4c566a}
     .gen2{fill:#e5e9f0;stroke:#3b4252}
     .gen3{fill:#d8dee9;stroke:#2e3440}
@@ -32,14 +32,15 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -8</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -1</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
   <button id="btnZoomOut">－</button>
   <button id="btnReset">RESET VIEW</button>
   <button id="save-svg-btn" style="padding:6px 18px; font-size:16px;">
-  💾 Save SVG </button>
+  💾 Save SVG
+</button>
 
 </div>
 
@@ -221,22 +222,7 @@
         n.attr('transform',`translate(${baseX+indent+extra},${d.x})`);
         n.select('rect')
           .attr('class',`node-rect gen${d.data.gen} ${genderClass}`)
-          .attr('x',0).attr('y',-12).attr('width',w).attr('height',24)
-          .attr('fill', 
-            gender === 'f' ? '#fbd3e0' :
-            gender === 'm' ? '#d0e4f7' :
-            d.data.gen === 1 ? '#eceff4' :
-            d.data.gen === 2 ? '#e5e9f0' :
-            d.data.gen === 3 ? '#d8dee9' :
-            '#fff'
-          )
-          .attr('stroke', 
-            d.data.gen === 1 ? '#4c566a' :
-            d.data.gen === 2 ? '#3b4252' :
-            d.data.gen === 3 ? '#2e3440' :
-            '#888'
-          );
-
+          .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
         n.select('text')
           .attr('class','node-text').attr('x',10).attr('y',0).text(label);
 
@@ -267,81 +253,61 @@
 
 <script>
 document.getElementById('save-svg-btn').onclick = function () {
+  // Get the SVG element
   const svg = document.querySelector('#tree_div svg');
   if (!svg) {
     alert('No SVG tree found.');
     return;
   }
+
   // Clone SVG for manipulation
   const clone = svg.cloneNode(true);
 
-  // Inline all computed styles on SVG elements
-  function inlineAllStyles(element) {
-    const win = document.defaultView || window;
-    const computedStyle = win.getComputedStyle(element);
-    let styleStr = "";
-    for (let i = 0; i < computedStyle.length; i++) {
-      const prop = computedStyle[i];
-      // Only copy visually important properties
+  // Inline computed styles for all elements inside the SVG
+  function inlineStyles(el) {
+    const computed = getComputedStyle(el);
+    let styleStr = '';
+    for (let i = 0; i < computed.length; i++) {
+      const key = computed[i];
+      // Only include style rules relevant for SVG (skip browser defaults)
       if (
-        prop.startsWith("fill") ||
-        prop.startsWith("stroke") ||
-        prop.startsWith("font") ||
-        prop.startsWith("color") ||
-        prop.startsWith("text") ||
-        prop.startsWith("opacity") ||
-        prop === "filter" ||
-        prop === "dominant-baseline"
+        key.startsWith('font') ||
+        key.startsWith('fill') ||
+        key.startsWith('stroke') ||
+        key.startsWith('color') ||
+        key.startsWith('opacity') ||
+        key === 'display'
       ) {
-        styleStr += `${prop}:${computedStyle.getPropertyValue(prop)};`;
+        styleStr += `${key}:${computed.getPropertyValue(key)};`;
       }
     }
-    if (styleStr) element.setAttribute("style", styleStr);
-    // Recurse into children
-    for (const child of element.children) {
-      inlineAllStyles(child);
-    }
+    if (styleStr) el.setAttribute('style', styleStr);
+    for (const child of el.children) inlineStyles(child);
   }
-  inlineAllStyles(clone);
+  inlineStyles(clone);
 
-  // Insert your CSS as a <style> tag too (for extra robustness)
-  const css = `
-    .trunk, .branch { fill: none; stroke: #888; stroke-width: 1.5px; stroke-linecap: round; }
-    .node-rect { rx: 4; ry: 4;}
-    .gen1 { fill: #eceff4; stroke: #4c566a; }
-    .gen2 { fill: #e5e9f0; stroke: #3b4252; }
-    .gen3 { fill: #d8dee9; stroke: #2e3440; }
-    .female { fill: #fbd3e0 !important; }
-    .male { fill: #d0e4f7 !important; }
-    .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
-    .node { cursor: pointer; }
-    .tooltip { paint-order: stroke; font: 13px sans-serif; fill: #333; stroke: #fff; stroke-width: .5; pointer-events: none; }
-  `;
-  const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
-  style.setAttribute("type", "text/css");
-  style.innerHTML = "<![CDATA[\n" + css + "\n]]>";
-  clone.insertBefore(style, clone.firstChild);
+  // Set necessary SVG attributes for standalone files
+  clone.setAttribute('version', '1.1');
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-  // SVG root attributes
-  clone.setAttribute("version", "1.1");
-  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-
-  // Serialize and download
+  // Serialize to string
   const serializer = new XMLSerializer();
   let source = serializer.serializeToString(clone);
+
+  // Add XML declaration
   source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
 
-  const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
-  const link = document.createElement("a");
+  // Trigger download
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+  const link = document.createElement('a');
   link.href = url;
-  link.download = "family-tree.svg";
+  link.download = 'family-tree.svg';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 };
 </script>
-
 
 
 </body>
