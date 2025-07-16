@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -7</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -8</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -221,7 +221,22 @@
         n.attr('transform',`translate(${baseX+indent+extra},${d.x})`);
         n.select('rect')
           .attr('class',`node-rect gen${d.data.gen} ${genderClass}`)
-          .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
+          .attr('x',0).attr('y',-12).attr('width',w).attr('height',24)
+          .attr('fill', 
+            gender === 'f' ? '#fbd3e0' :
+            gender === 'm' ? '#d0e4f7' :
+            d.data.gen === 1 ? '#eceff4' :
+            d.data.gen === 2 ? '#e5e9f0' :
+            d.data.gen === 3 ? '#d8dee9' :
+            '#fff'
+          )
+          .attr('stroke', 
+            d.data.gen === 1 ? '#4c566a' :
+            d.data.gen === 2 ? '#3b4252' :
+            d.data.gen === 3 ? '#2e3440' :
+            '#888'
+          );
+
         n.select('text')
           .attr('class','node-text').attr('x',10).attr('y',0).text(label);
 
