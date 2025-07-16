@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -2</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -3</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -259,31 +259,33 @@ document.getElementById('save-svg-btn').onclick = function () {
     return;
   }
 
-  // Clone SVG for manipulation
-  const clone = svg.cloneNode(true);
-
-  // ---- STEP 1: Add your CSS into a <style> tag ----
-  // Find your CSS rules! Example: if your boxes and text are styled like this:
+  // Copy only the SVG-relevant styles (edit if you want to fine-tune)
   const css = `
-    .node rect { fill: #f4f4f4; stroke: #333; stroke-width: 2; }
-    .node text { font: 14px "Segoe UI", sans-serif; fill: #222; }
-    .link { fill: none; stroke: #aaa; stroke-width: 2; }
-    /* Add other class/style rules you use in your SVG! */
+    .trunk, .branch { fill: none; stroke: #888; stroke-width: 1.5px; stroke-linecap: round; }
+    .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
+    .gen1 { fill: #eceff4; stroke: #4c566a; }
+    .gen2 { fill: #e5e9f0; stroke: #3b4252; }
+    .gen3 { fill: #d8dee9; stroke: #2e3440; }
+    .female { fill: #fbd3e0 !important; }
+    .male { fill: #d0e4f7 !important; }
+    .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
+    .node { cursor: pointer; }
+    .tooltip { paint-order: stroke; font: 13px sans-serif; fill: #333; stroke: #fff; stroke-width: .5; pointer-events: none; }
   `;
-  // Create <style> node
+
+  // Clone the SVG and inject styles
+  const clone = svg.cloneNode(true);
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
   style.setAttribute('type', 'text/css');
   style.innerHTML = "<![CDATA[\n" + css + "\n]]>";
-
-  // Insert <style> as first child of <svg>
   clone.insertBefore(style, clone.firstChild);
 
-  // ---- STEP 2: Add required SVG attributes ----
+  // Set basic SVG attributes
   clone.setAttribute('version', '1.1');
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-  // ---- STEP 3: Serialize and download ----
+  // Serialize and download
   const serializer = new XMLSerializer();
   let source = serializer.serializeToString(clone);
   source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
@@ -297,6 +299,7 @@ document.getElementById('save-svg-btn').onclick = function () {
   document.body.removeChild(link);
 };
 </script>
+
 
 
 
