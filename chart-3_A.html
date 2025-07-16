@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Kariapper Family Tree</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="d3.min.js"></script>
   <style>
     body { margin: 0; font-family: "Segoe UI", sans-serif; }
     h1   { text-align: center; margin: 12px 0; }
@@ -30,12 +30,15 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations - x</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -y</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
     <button id="btnZoomOut">－</button>
     <button id="btnReset">Reset View</button>
+      <button onclick="window.location.reload();" style="padding: 6px 18px; font-size: 16px;">
+    🔄 Refresh
+  </button>
   </div>
   <div id="tree_div">Loading…</div>
 
