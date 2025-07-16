@@ -30,15 +30,18 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -y</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -z</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
     <button id="btnZoomOut">－</button>
     <button id="btnReset">Reset View</button>
-      <button onclick="window.location.reload();" style="padding: 6px 18px; font-size: 16px;">
+    <button id="save-svg-btn" style="padding:6px 18px; font-size:16px;">💾 Save SVG </button>
+  </div>
+  <div id="refresh-row" style="text-align: center; margin-top: 8px;">
+    <button onclick="window.location.reload();" style="padding: 6px 18px; font-size: 16px;">
     🔄 Refresh
-  </button>
+    </button>
   </div>
   <div id="tree_div">Loading…</div>
 
@@ -245,5 +248,54 @@
   };
 })();
 </script>
+<script>
+document.getElementById('save-svg-btn').onclick = function () {
+  const svg = document.querySelector('#tree_div svg');
+  if (!svg) {
+    alert('No SVG tree found.');
+    return;
+  }
+
+  // Copy only the SVG-relevant styles (edit if you want to fine-tune)
+  const css = `
+    .trunk, .branch { fill: none; stroke: #888; stroke-width: 1.5px; stroke-linecap: round; }
+    .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
+    .gen1 { fill: #eceff4; stroke: #4c566a; }
+    .gen2 { fill: #e5e9f0; stroke: #3b4252; }
+    .gen3 { fill: #d8dee9; stroke: #2e3440; }
+    .female { fill: #fbd3e0 !important; }
+    .male { fill: #d0e4f7 !important; }
+    .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
+    .node { cursor: pointer; }
+    .tooltip { paint-order: stroke; font: 13px sans-serif; fill: #333; stroke: #fff; stroke-width: .5; pointer-events: none; }
+  `;
+
+  // Clone the SVG and inject styles
+  const clone = svg.cloneNode(true);
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.setAttribute('type', 'text/css');
+  style.innerHTML = "<![CDATA[\n" + css + "\n]]>";
+  clone.insertBefore(style, clone.firstChild);
+
+  // Set basic SVG attributes
+  clone.setAttribute('version', '1.1');
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+  // Serialize and download
+  const serializer = new XMLSerializer();
+  let source = serializer.serializeToString(clone);
+  source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
+
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'family-tree.svg';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+</script>
+
 </body>
 </html>
