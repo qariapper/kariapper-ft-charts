@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -1</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -2</h1>
 <div id="controls">
   <button onclick="toggleGen3()">Toggle Gen-3</button>
   <button id="btnZoomIn">＋</button>
@@ -253,7 +253,6 @@
 
 <script>
 document.getElementById('save-svg-btn').onclick = function () {
-  // Get the SVG element
   const svg = document.querySelector('#tree_div svg');
   if (!svg) {
     alert('No SVG tree found.');
@@ -263,42 +262,32 @@ document.getElementById('save-svg-btn').onclick = function () {
   // Clone SVG for manipulation
   const clone = svg.cloneNode(true);
 
-  // Inline computed styles for all elements inside the SVG
-  function inlineStyles(el) {
-    const computed = getComputedStyle(el);
-    let styleStr = '';
-    for (let i = 0; i < computed.length; i++) {
-      const key = computed[i];
-      // Only include style rules relevant for SVG (skip browser defaults)
-      if (
-        key.startsWith('font') ||
-        key.startsWith('fill') ||
-        key.startsWith('stroke') ||
-        key.startsWith('color') ||
-        key.startsWith('opacity') ||
-        key === 'display'
-      ) {
-        styleStr += `${key}:${computed.getPropertyValue(key)};`;
-      }
-    }
-    if (styleStr) el.setAttribute('style', styleStr);
-    for (const child of el.children) inlineStyles(child);
-  }
-  inlineStyles(clone);
+  // ---- STEP 1: Add your CSS into a <style> tag ----
+  // Find your CSS rules! Example: if your boxes and text are styled like this:
+  const css = `
+    .node rect { fill: #f4f4f4; stroke: #333; stroke-width: 2; }
+    .node text { font: 14px "Segoe UI", sans-serif; fill: #222; }
+    .link { fill: none; stroke: #aaa; stroke-width: 2; }
+    /* Add other class/style rules you use in your SVG! */
+  `;
+  // Create <style> node
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.setAttribute('type', 'text/css');
+  style.innerHTML = "<![CDATA[\n" + css + "\n]]>";
 
-  // Set necessary SVG attributes for standalone files
+  // Insert <style> as first child of <svg>
+  clone.insertBefore(style, clone.firstChild);
+
+  // ---- STEP 2: Add required SVG attributes ----
   clone.setAttribute('version', '1.1');
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-  // Serialize to string
+  // ---- STEP 3: Serialize and download ----
   const serializer = new XMLSerializer();
   let source = serializer.serializeToString(clone);
-
-  // Add XML declaration
   source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
 
-  // Trigger download
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
   const link = document.createElement('a');
   link.href = url;
@@ -308,6 +297,7 @@ document.getElementById('save-svg-btn').onclick = function () {
   document.body.removeChild(link);
 };
 </script>
+
 
 
 </body>
