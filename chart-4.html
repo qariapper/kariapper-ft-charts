@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs</h1>
+  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs -x </h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -160,13 +160,18 @@ function toggle(_, d) {
       const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
       const ys = parent.children.map(c=>c.x);
       let y0 = d3.min(ys), y1 = d3.max(ys);
-      // If only one child, make a visible vertical trunk (at least 10px)
+      // --- Key fix: if all children stacked, forcibly make trunk visible (10px)
       if (y0 === y1) {
-        y0 -= 5; y1 += 5;
+        if (parent.children.length > 1) {
+          y0 -= 5; y1 += 5; // Make a visible trunk for siblings stacked horizontally!
+        } else {
+          y0 -= 5; y1 += 5; // Also for a single child, as before
+        }
       }
       trunkData.push({trunkX:trunkX, y0:y0, y1:y1});
       stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
     });
+
 
 
     // Add left stub for every non-root node
