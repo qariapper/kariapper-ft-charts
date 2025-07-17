@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Recursive Left-Aligned Pedigree</title>
+  <title>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree</h1>
+  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -142,8 +142,10 @@ function toggle(_, d) {
   update = function(){
     tree(root);
 
+    const leftStub = 16; // px stub before every non-root box
+
     const xs = root.descendants().map(d => d.x);
-    const ys = root.descendants().map(d => d.y).concat(root.descendants().map(d=>d.y+nodeBoxWidth(d)));
+    const ys = root.descendants().map(d => d.y).concat(root.descendants().map(d=>d.y+nodeBoxWidth(d)+leftStub));
     const M=100;
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
@@ -154,12 +156,22 @@ function toggle(_, d) {
     root.descendants().forEach(parent=>{
       if(!(parent.children && parent.children.length)) return;
       // The vertical trunk is at the leftmost child box (min y among children)
+      // - but child boxes are shifted right by leftStub
       const trunkX = d3.min(parent.children, c => c.y);
-      const parentRight = parent.y + nodeBoxWidth(parent);
+      const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
       const ys = parent.children.map(c=>c.x);
       trunkData.push({trunkX:trunkX, y0:d3.min(ys), y1:d3.max(ys)});
       // Stub from parent's box right edge to trunk
       stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
+    });
+
+    // 1b. Add a left stub for every non-root node (from trunk to left edge of box)
+    root.descendants().forEach(node=>{
+      if(node.depth>0) {
+        stubData.push({
+          x0: node.y, x1: node.y + leftStub, y: node.x
+        });
+      }
     });
 
     // Draw all vertical trunks
@@ -182,7 +194,7 @@ function toggle(_, d) {
       )
       .attr('d',d=>`M${d.x0},${d.y}H${d.x1}`);
 
-    // 2. Draw nodes (LEFT-aligned)
+    // 2. Draw nodes (LEFT-aligned, with leftStub)
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
@@ -201,7 +213,7 @@ function toggle(_, d) {
         const icon=gender==='f'?' ♀':gender==='m'?' ♂':'';
         const label=d.data.name+icon+' '+d.data.id;
         const w=nodeBoxWidth(d);
-        n.attr('transform',`translate(${d.y},${d.x})`);
+        n.attr('transform',`translate(${d.parent ? d.y+leftStub : d.y},${d.x})`);
         n.select('rect')
           .attr('class',`node-rect gen${d.data.gen} ${gender==='f'?'female':gender==='m'?'male':''}${d.data.dod ? ' deceased' : ''}`)
           .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
@@ -210,7 +222,7 @@ function toggle(_, d) {
 
         n.on('mouseover',()=>{
           const t=d.data.spouse?`Spouse(s): ${d.data.spouse}`:'Spouse(s): none';
-          tooltip.text(t).attr('x',d.y+5).attr('y',d.x-18).style('display','block');
+          tooltip.text(t).attr('x',d.y+leftStub+5).attr('y',d.x-18).style('display','block');
         }).on('mouseout',()=>tooltip.style('display','none'));
       });
   };
