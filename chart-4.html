@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Kariapper Family Tree</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="d3.min.js"></script>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", sans-serif; }
+    h1   { text-align: center; margin: 12px 0; }
+    #controls { text-align: center; margin: 10px; }
+    #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
+    svg { display: block; width: 100%; height: auto; }
+
+    .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
+    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
+    .gen1{fill:#eceff4;stroke:#4c566a}
+    .gen2{fill:#e5e9f0;stroke:#3b4252}
+    .gen3{fill:#d8dee9;stroke:#2e3440}
+    .female{fill:#fbd3e0!important}
+    .male  {fill:#d0e4f7!important}
+    .deceased { stroke: green !important; }
+
+    .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
+    .node{cursor:pointer}
+    .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
+             stroke-width:.5;pointer-events:none}
+    #btnReset{margin-left:6px;font-size:.9em;opacity:.75}
+    #btnZoomIn{margin-left:20px;font-size:.9em;opacity:.75}
+  </style>
+</head>
+<body>
+  <h1>Kariapper Family Tree – -4</h1>
+  <div id="controls">
+    <button onclick="toggleGen3()">Toggle Gen-3</button>
+    <button id="btnZoomIn">＋</button>
+    <button id="btnZoomOut">－</button>
+    <button id="btnReset">Reset View</button>
+    <button id="save-svg-btn" style="padding:6px 18px; font-size:16px;">💾 Save SVG </button>
+  </div>
+  <div id="refresh-row" style="text-align: center; margin-top: 8px;">
+    <button onclick="window.location.reload();" style="padding: 6px 18px; font-size: 16px;">
+    🔄 Refresh
+    </button>
+  </div>
+  <div id="tree_div">Loading…</div>
+
+<script>
+(async function () {
+  const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
+  const raw=await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`).then(r=>r.text());
+  const json=JSON.parse(raw.slice(raw.indexOf('(')+1,raw.lastIndexOf(')')));
+  const headers=json.table.cols.map(c=>c.label);
+  const rows=json.table.rows;
+
+  const idIdx=headers.findIndex(h=>/\(dID\)$/i.test(h));
+  const nameIdx=headers.findIndex(h=>h.trim()==='Full Name');
+  const genIdx=headers.findIndex(h=>/^generation$/i.test(h));
+  const spouseIdx=headers.findIndex(h=>h.trim().toLowerCase().startsWith('spouse'));
+  const genderIdx=headers.findIndex(h=>h.trim().toLowerCase()==='gender');
+  const dodIdx=12; // Column M is index 12 (0-based)
+
+  if([idIdx,nameIdx,genIdx,spouseIdx].some(i=>i<0)){
+    document.getElementById('tree_div').textContent='❌ missing columns';
+    return;
+  }
+
+  const flat=rows.map(r=>{
+    const id=r.c[idIdx]?.v||'';
+    const name=r.c[nameIdx]?.v||'';
+    const gen=+r.c[genIdx]?.v;
+    const spouse=r.c[spouseIdx]?.v||'';
+    const genderRaw=genderIdx>=0?r.c[genderIdx]?.v?.toLowerCase():'';
+    const gender=genderRaw.startsWith('f')?'f':genderRaw.startsWith('m')?'m':'';
+    const dod = r.c[dodIdx]?.v || '';
+    return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
+  }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
+
+  const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
+  flat.forEach(d=>{if(d.parent&&byId[d.parent])byId[d.parent].children.push(d);});
+  const rootData=byId['ALK'];
+  if(!rootData){document.getElementById('tree_div').textContent='❌ root ALK not found';return;}
+
+  const charW=9;
+  const maxLabelLen = d3.max(flat, d => {
+    const icon = d.gender==='f'?' ♀':d.gender==='m'?' ♂':'';
+    return (d.name + icon + ' ' + d.id).length;
+  });
+  const hSpacing=Math.max(180,maxLabelLen*charW+50);
+  const vSpacing=40;
+  const stub=20;
+  const indent=12;
+
+  const root=d3.hierarchy(rootData,d=>d.children);
+  const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
+
+  root.descendants().forEach(d=>{if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;} });
+
+  const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
+  const gZoom=svg.append('g');
+  const g=gZoom.append('g');
+
+  const zoomBehavior=d3.zoom()
+      .scaleExtent([0.5,2])
+      .on('zoom',({transform})=>gZoom.attr('transform',transform));
+  svg.call(zoomBehavior);
+
+  const zoomStep = 1.25;
+  d3.select('#btnZoomIn' ).on('click', () => svg.transition().call(zoomBehavior.scaleBy, zoomStep));
+  d3.select('#btnZoomOut').on('click', () => svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
+  d3.select('#btnReset'  ).on('click', () => svg.transition().call(zoomBehavior.transform, d3.zoomIdentity));
+
+  window.addEventListener('keydown', e => {
+    if (e.target !== document.body) return;
+    if (e.key === '+' || e.key === '=') {
+      svg.transition().call(zoomBehavior.scaleBy, zoomStep);
+    } else if (e.key === '-' || e.key === '_') {
+      svg.transition().call(zoomBehavior.scaleBy, 1 / zoomStep);
+    } else if (e.key === '0') {
+      svg.transition().call(zoomBehavior.transform, d3.zoomIdentity);
+    }
+  });
+
+  function centerView(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
+  window.resetView=centerView;
+
+  const tooltip=g.append('text').attr('class','tooltip').style('display','none');
+
+  function toggle(_,d){
+    if(d.data.gen===2){
+      d.children?(d._children=d.children,d.children=null):(d.children=d._children,d._children=null);
+      update();
+      centerView();
+    }
+  }
+
+  function update(){
+    tree(root);
+
+    const alignedX=d3.max(
+      root.descendants().filter(d=>(d.children&&d.children.length)||(d._children&&d._children.length)),
+      d=>{
+        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+        const label = d.data.name + icon + ' ' + d.data.id;
+        return d.y + Math.max(80,label.length*charW+20)/2 + stub;
+      });
+
+    const xs=root.descendants().map(d=>d.x);
+    const ys=root.descendants().map(d=>d.y).concat(alignedX);
+    const M=100;
+    svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
+    g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
+
+    g.selectAll('path.trunk')
+      .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
+      .join(
+        enter=>enter.append('path').attr('class','trunk'),
+        update=>update,
+        exit=>exit.remove()
+      )
+      .attr('d',d=>{
+        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+        const label = d.data.name + icon + ' ' + d.data.id;
+        const w=Math.max(80,label.length*charW+20);
+        const px=d.y+w/2+(d.depth===0?indent:0);
+        const tx=d.depth===1?alignedX:px+stub;
+        const ys=d.children.map(c=>c.x);
+        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
+      });
+
+    g.selectAll('path.branch')
+      .data(root.links(),d=>d.target.data.id)
+      .join(
+        enter=>enter.append('path').attr('class','branch'),
+        update=>update,
+        exit=>exit.remove()
+      )
+      .attr('d',d=>{
+        const sIcon = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
+        const sLabel = d.source.data.name + sIcon + ' ' + d.source.data.id;
+        const srcW=Math.max(80,sLabel.length*charW+20);
+        const parentX=d.source.depth===1
+              ? alignedX
+              : d.source.y+srcW/2+stub+(d.source.depth===0?indent:0);
+
+        const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
+        const tLabel = d.target.data.name + tIcon + ' ' + d.target.data.id;
+        const trgW=Math.max(80,tLabel.length*charW+20);
+        const childTrunkX=d.target.depth===2?alignedX:d.target.y+trgW/2+stub;
+        const hasKids=d.target.children&&d.target.children.length;
+        const endX=hasKids?childTrunkX:parentX+indent;
+        return `M${parentX},${d.target.x}H${endX}`;
+      });
+
+    g.selectAll('g.node')
+      .data(root.descendants(),d=>d.data.id)
+      .join(
+        enter=>{
+          const n=enter.append('g').attr('class','node').on('click',toggle);
+          n.append('rect');
+          n.append('text');
+          return n;
+        },
+        update=>update,
+        exit=>exit.remove()
+      )
+      .each(function(d){
+        const n=d3.select(this);
+        const gender=d.data.gender;
+        const icon=gender==='f'?' ♀':gender==='m'?' ♂':'';
+        const label=d.data.name+icon+' '+d.data.id;
+        const w=Math.max(80,label.length*charW+20);
+        const baseX=d.parent
+          ? (d.parent.depth===1?alignedX:d.parent.y+Math.max(80,(d.parent.data.name+(d.parent.data.gender==='f'?' ♀':d.parent.data.gender==='m'?' ♂':'')+' '+d.parent.data.id).length*charW+20)/2+stub)
+          : d.y-w/2;
+
+        const extra=d.depth===1?indent:0;
+        const genderClass=gender==='f'?'female':gender==='m'?'male':'';
+        const deathClass=d.data.dod ? ' deceased' : '';
+
+        n.attr('transform',`translate(${baseX+indent+extra},${d.x})`);
+        n.select('rect')
+          .attr('class',`node-rect gen${d.data.gen} ${genderClass}${deathClass}`)
+          .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
+        n.select('text')
+          .attr('class','node-text').attr('x',10).attr('y',0).text(label);
+
+        n.on('mouseover',()=>{
+          const t=d.data.spouse?`Spouse(s): ${d.data.spouse}`:'Spouse(s): none';
+          tooltip.text(t).attr('x',baseX+indent+5).attr('y',d.x-18).style('display','block');
+        }).on('mouseout',()=>tooltip.style('display','none'));
+      });
+  }
+
+  update();
+
+  let collapsed=true;
+  window.toggleGen3=function(){
+    root.descendants().forEach(d=>{
+      if(d.data.gen===2){
+        if(collapsed&&d._children){d.children=d._children;d._children=null;}
+        else if(!collapsed&&d.children){d._children=d.children;d.children=null;}
+      }
+    });
+    collapsed=!collapsed;
+    update();
+    centerView();
+  };
+})();
+</script>
+<script>
+document.getElementById('save-svg-btn').onclick = function () {
+  const svg = document.querySelector('#tree_div svg');
+  if (!svg) {
+    alert('No SVG tree found.');
+    return;
+  }
+
+  // Copy only the SVG-relevant styles (edit if you want to fine-tune)
+  const css = `
+    .trunk, .branch { fill: none; stroke: #888; stroke-width: 1.5px; stroke-linecap: round; }
+    .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
+    .gen1 { fill: #eceff4; stroke: #4c566a; }
+    .gen2 { fill: #e5e9f0; stroke: #3b4252; }
+    .gen3 { fill: #d8dee9; stroke: #2e3440; }
+    .female { fill: #fbd3e0 !important; }
+    .male { fill: #d0e4f7 !important; }
+    .deceased { stroke: green !important; }
+    .node-text { pointer-events: none; text-anchor: start; dominant-baseline: central; }
+    .node { cursor: pointer; }
+    .tooltip { paint-order: stroke; font: 13px sans-serif; fill: #333; stroke: #fff; stroke-width: .5; pointer-events: none; }
+  `;
+
+  // Clone the SVG and inject styles
+  const clone = svg.cloneNode(true);
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.setAttribute('type', 'text/css');
+  style.innerHTML = "<![CDATA[\n" + css + "\n]]>";
+  clone.insertBefore(style, clone.firstChild);
+
+  // Set basic SVG attributes
+  clone.setAttribute('version', '1.1');
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+  // Serialize and download
+  const serializer = new XMLSerializer();
+  let source = serializer.serializeToString(clone);
+  source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
+
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'family-tree.svg';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+</script>
+
+</body>
+</html>
