@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Unlimited Generations (Fixed)</h1>
+  <h1>Kariapper Family Tree – Unlimited Generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -166,16 +166,18 @@ function toggle(_, d) {
         update=>update,
         exit=>exit.remove()
       )
-      .attr('d',d=>{
+      .attr('d', d => {
         const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
         const label = d.data.name + icon + ' ' + d.data.id;
-        const w=Math.max(80,label.length*charW+20);
-        const px=d.y+w/2+(d.depth===0?indent:0);
-        // Align ALK's trunk to gen-1 trunk, all others to their own
-        const tx = d.depth === 0 ? alignedXForDepth(1) : alignedXForDepth(d.depth);
-        const ys=d.children.map(c=>c.x);
+        const w = Math.max(80, label.length * charW + 20);
+        const px = d.y + w / 2 + (d.depth === 0 ? indent : 0);
+        const tx = d.depth === 0
+          ? px + 24  // just extend a short stub from ALK
+          : alignedXForDepth(d.depth);
+        const ys = d.children.map(c => c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-      });
+      })
+
 
     // Draw branches (horizontal connectors from trunk to node)
     g.selectAll('path.branch')
