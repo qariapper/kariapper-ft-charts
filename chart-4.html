@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree</title>
+  <title>Kariapper Family Tree – Corrected</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Corrected & Unlimited Generations</h1>
+  <h1>Kariapper Family Tree – Unlimited Generations (Fixed)</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -46,6 +46,23 @@
   <div id="tree_div">Loading…</div>
 
 <script>
+let root, centerView, update;
+let collapsed = true;
+
+function toggle(_, d) {
+  if (d.data.gen === 2) {
+    if (d.children) {
+      d._children = d.children;
+      d.children = null;
+    } else if (d._children) {
+      d.children = d._children;
+      d._children = null;
+    }
+    update();
+    centerView();
+  }
+}
+
 (async function () {
   const sheetID='1BE7PJAJs3QxHnOsb1z5cKnGHdjQCR8IksorMcAm7Fx8';
   const raw=await fetch(`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?gid=0&headers=1&tqx=out:json`).then(r=>r.text());
@@ -91,7 +108,7 @@
   const stub=20;
   const indent=12;
 
-  const root=d3.hierarchy(rootData,d=>d.children);
+  root=d3.hierarchy(rootData,d=>d.children);
   const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
 
   root.descendants().forEach(d=>{if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;} });
@@ -110,18 +127,7 @@
   d3.select('#btnZoomOut').on('click', () => svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
   d3.select('#btnReset'  ).on('click', () => svg.transition().call(zoomBehavior.transform, d3.zoomIdentity));
 
-  window.addEventListener('keydown', e => {
-    if (e.target !== document.body) return;
-    if (e.key === '+' || e.key === '=') {
-      svg.transition().call(zoomBehavior.scaleBy, zoomStep);
-    } else if (e.key === '-' || e.key === '_') {
-      svg.transition().call(zoomBehavior.scaleBy, 1 / zoomStep);
-    } else if (e.key === '0') {
-      svg.transition().call(zoomBehavior.transform, d3.zoomIdentity);
-    }
-  });
-
-  function centerView(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
+  centerView = function(){ svg.transition().duration(0).call(zoomBehavior.transform, d3.zoomIdentity); }
   window.resetView=centerView;
 
   const tooltip=g.append('text').attr('class','tooltip').style('display','none');
@@ -140,7 +146,7 @@
     ) || 0;
   }
 
-  function update(){
+  update = function(){
     tree(root);
 
     const xs = root.descendants().map(d => d.x);
@@ -231,7 +237,6 @@
 
   update();
 
-  let collapsed=true;
   window.toggleGen3=function(){
     root.descendants().forEach(d=>{
       if(d.data.gen===2){
