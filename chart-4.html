@@ -74,7 +74,8 @@
     const gender=genderRaw.startsWith('f')?'f':genderRaw.startsWith('m')?'m':'';
     const dod = r.c[dodIdx]?.v || '';
     return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
-  }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
+  // }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
+  }).filter(d=>d.id && d.name && Number.isFinite(d.gen));   // keep everyone
 
   const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
   flat.forEach(d=>{if(d.parent&&byId[d.parent])byId[d.parent].children.push(d);});
