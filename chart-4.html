@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs</h1>
+  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs -1</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -157,7 +157,7 @@ function toggle(_, d) {
       if(!(parent.children && parent.children.length)) return;
       // The vertical trunk is at the leftmost child box (min y among children)
       // - but child boxes are shifted right by leftStub
-      const trunkX = d3.min(parent.children, c => c.y);
+      const trunkX = d3.min(parent.children, c => c.y) + leftStub;
       const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
       const ys = parent.children.map(c=>c.x);
       trunkData.push({trunkX:trunkX, y0:d3.min(ys), y1:d3.max(ys)});
