@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Unlimited Generations</h1>
+  <h1>Kariapper Family Tree – Unlimited Generations -A</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -171,9 +171,11 @@ function toggle(_, d) {
         const label = d.data.name + icon + ' ' + d.data.id;
         const w = Math.max(80, label.length * charW + 20);
         const px = d.y + w / 2 + (d.depth === 0 ? indent : 0);
+        const alkStub = 48; // or more if you want bigger gap!
         const tx = d.depth === 0
-          ? px + 24  // just extend a short stub from ALK
+          ? (d.y + w/2 + alkStub)
           : alignedXForDepth(d.depth);
+
         const ys = d.children.map(c => c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       })
@@ -217,8 +219,11 @@ function toggle(_, d) {
         const label=d.data.name+icon+' '+d.data.id;
         const w=Math.max(80,label.length*charW+20);
         const baseX = d.parent
-          ? alignedXForDepth(d.parent.depth)
-          : d.y - w / 2;
+          ? (d.parent.depth === 0
+              ? (d.parent.y + Math.max(80, (d.parent.data.name + (d.parent.data.gender === 'f' ? ' ♀' : d.parent.data.gender === 'm' ? ' ♂' : '') + ' ' + d.parent.data.id).length * charW + 20)/2 + alkStub)
+              : alignedXForDepth(d.parent.depth))
+          : d.y - w/2;
+
         const extra=d.depth===1?indent:0;
         const genderClass=gender==='f'?'female':gender==='m'?'male':'';
         const deathClass=d.data.dod ? ' deceased' : '';
