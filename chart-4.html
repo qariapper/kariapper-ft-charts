@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Recursive Aligned Pedigree</title>
+  <title>Kariapper Family Tree – Recursive Left-Aligned Pedigree</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Recursive Aligned Pedigree -CC</h1>
+  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -101,15 +101,20 @@ function toggle(_, d) {
   });
   const hSpacing=Math.max(180,maxLabelLen*charW+50);
   const vSpacing=40;
-  const trunkGap=48; // gap from parent box right edge to vertical trunk
   const indent=12;
+
+  function nodeBoxWidth(d) {
+    const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
+    const label = d.data.name + icon + ' ' + d.data.id;
+    return Math.max(80, label.length * charW + 20);
+  }
 
   root=d3.hierarchy(rootData,d=>d.children);
   const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
 
-  // 3. Collapse everything after gen-2
+  // Collapse everything after gen-3 on first load (change to 2 if you wish)
   root.descendants().forEach(d=>{
-    if(d.depth>=2&&d.children){
+    if(d.depth>=3&&d.children){
       d._children=d.children;
       d.children=null;
     }
@@ -134,50 +139,27 @@ function toggle(_, d) {
 
   const tooltip=g.append('text').attr('class','tooltip').style('display','none');
 
-  function nodeBoxWidth(d) {
-    const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
-    const label = d.data.name + icon + ' ' + d.data.id;
-    return Math.max(80, label.length * charW + 20);
-  }
-
-  // Align all vertical trunks at same x for each generation
-  function alignedTrunkXForDepth(depth) {
-    // Find rightmost edge for all nodes at this depth that have children (or hidden)
-    const nodes = root.descendants().filter(d =>
-      d.depth === depth &&
-      ((d.children && d.children.length) || (d._children && d._children.length))
-    );
-    if (!nodes.length) return null;
-    return d3.max(nodes, d => d.y + nodeBoxWidth(d) + trunkGap);
-  }
-
   update = function(){
     tree(root);
 
     const xs = root.descendants().map(d => d.x);
-    // viewBox logic for left-aligned
     const ys = root.descendants().map(d => d.y).concat(root.descendants().map(d=>d.y+nodeBoxWidth(d)));
     const M=100;
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-    // --- 1. Pedigree trunks/stubs for every parent with expanded children ---
+    // 1. For every parent with children: draw stub (horizontal) and trunk (vertical)
     let trunkData = [];
     let stubData  = [];
     root.descendants().forEach(parent=>{
       if(!(parent.children && parent.children.length)) return;
-      // Each trunk for a depth is aligned at rightmost for that depth
-      const thisTrunkX = alignedTrunkXForDepth(parent.depth);
+      // The vertical trunk is at the leftmost child box (min y among children)
+      const trunkX = d3.min(parent.children, c => c.y);
+      const parentRight = parent.y + nodeBoxWidth(parent);
       const ys = parent.children.map(c=>c.x);
-      trunkData.push({trunkX:thisTrunkX, y0:d3.min(ys), y1:d3.max(ys)});
-      // Each stub for each child: from trunk to child's left edge
-      parent.children.forEach(child=>{
-        stubData.push({x0:thisTrunkX, x1:child.y, y:child.x});
-      });
-      // For root (ALK), add horizontal from right edge of box to trunk
-      if(parent.depth===0){
-        stubData.push({x0:parent.y+nodeBoxWidth(parent), x1:thisTrunkX, y:parent.x});
-      }
+      trunkData.push({trunkX:trunkX, y0:d3.min(ys), y1:d3.max(ys)});
+      // Stub from parent's box right edge to trunk
+      stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
     });
 
     // Draw all vertical trunks
@@ -200,7 +182,7 @@ function toggle(_, d) {
       )
       .attr('d',d=>`M${d.x0},${d.y}H${d.x1}`);
 
-    // --- 2. Draw nodes (LEFT-aligned) ---
+    // 2. Draw nodes (LEFT-aligned)
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
@@ -237,7 +219,7 @@ function toggle(_, d) {
 
   window.toggleGen3=function(){
     root.descendants().forEach(d=>{
-      if(d.depth===1){
+      if(d.depth===2){
         if(collapsed&&d._children){d.children=d._children;d._children=null;}
         else if(!collapsed&&d.children){d._children=d.children;d.children=null;}
       }
