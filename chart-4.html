@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs</title>
+  <title>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs (GEN-5 FIX)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs -p</h1>
+  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs (GEN-5 FIX)</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -142,7 +142,7 @@ function toggle(_, d) {
   update = function(){
     tree(root);
 
-    const leftStub = 16; // px stub before every non-root box
+    const leftStub = 16;
 
     const xs = root.descendants().map(d => d.x);
     const ys = root.descendants().map(d => d.y).concat(root.descendants().map(d=>d.y+nodeBoxWidth(d)+leftStub));
@@ -150,22 +150,18 @@ function toggle(_, d) {
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-    // 1. For every parent with children: draw stub (horizontal) and trunk (vertical)
+    // Trunks and stubs (GEN-5 FIX)
     let trunkData = [];
     let stubData  = [];
     root.descendants().forEach(parent=>{
       if(!(parent.children && parent.children.length)) return;
-      // The vertical trunk is at the leftmost child box (min y among children)
-      // - but child boxes are shifted right by leftStub
-      const trunkX = d3.min(parent.children, c => c.y);  // no + leftStub
+      const trunkX = d3.min(parent.children, c => c.y); // Do NOT add leftStub here!
       const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
       const ys = parent.children.map(c=>c.x);
       trunkData.push({trunkX:trunkX, y0:d3.min(ys), y1:d3.max(ys)});
-      // Stub from parent's box right edge to trunk
       stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
     });
-
-    // 1b. Add a left stub for every non-root node (from trunk to left edge of box)
+    // Add left stub for every non-root node
     root.descendants().forEach(node=>{
       if(node.depth>0) {
         stubData.push({
@@ -194,7 +190,7 @@ function toggle(_, d) {
       )
       .attr('d',d=>`M${d.x0},${d.y}H${d.x1}`);
 
-    // 2. Draw nodes (LEFT-aligned, with leftStub)
+    // Draw nodes (LEFT-aligned, with leftStub)
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
