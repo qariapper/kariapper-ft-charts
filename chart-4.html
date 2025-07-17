@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -x</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -yy</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -153,8 +153,12 @@
   }
 
 
-    const xs=root.descendants().map(d=>d.x);
-    const ys=root.descendants().map(d=>d.y).concat(alignedX);
+    const xs = root.descendants().map(d => d.x);
+    // Add all aligned trunk x positions for every depth that appears:
+    const uniqueDepths = Array.from(new Set(root.descendants().map(d => d.depth)));
+    const alignedXs = uniqueDepths.map(alignedXForDepth);
+    const ys = root.descendants().map(d => d.y).concat(alignedXs);
+
     const M=100;
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
@@ -187,10 +191,7 @@
         const sIcon = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
         const sLabel = d.source.data.name + sIcon + ' ' + d.source.data.id;
         const srcW=Math.max(80,sLabel.length*charW+20);
-        const parentX=d.source.depth===1
-              ? alignedX
-              : d.source.y+srcW/2+stub+(d.source.depth===0?indent:0);
-
+        const parentX = alignedXForDepth(d.source.depth);
         const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
         const tLabel = d.target.data.name + tIcon + ' ' + d.target.data.id;
         const trgW=Math.max(80,tLabel.length*charW+20);
@@ -218,10 +219,9 @@
         const icon=gender==='f'?' ♀':gender==='m'?' ♂':'';
         const label=d.data.name+icon+' '+d.data.id;
         const w=Math.max(80,label.length*charW+20);
-        const baseX=d.parent
-          ? (d.parent.depth===1?alignedX:d.parent.y+Math.max(80,(d.parent.data.name+(d.parent.data.gender==='f'?' ♀':d.parent.data.gender==='m'?' ♂':'')+' '+d.parent.data.id).length*charW+20)/2+stub)
-          : d.y-w/2;
-
+        const baseX = d.parent
+          ? alignedXForDepth(d.parent.depth)
+          : d.y - w / 2;
         const extra=d.depth===1?indent:0;
         const genderClass=gender==='f'?'female':gender==='m'?'male':'';
         const deathClass=d.data.dod ? ' deceased' : '';
