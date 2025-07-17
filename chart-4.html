@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -yy</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -zz</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -175,7 +175,7 @@
         const label = d.data.name + icon + ' ' + d.data.id;
         const w=Math.max(80,label.length*charW+20);
         const px=d.y+w/2+(d.depth===0?indent:0);
-        const tx = alignedXForDepth(d.depth);
+        const tx = d.depth === 0 ? alignedXForDepth(1) : alignedXForDepth(d.depth);
         const ys=d.children.map(c=>c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
@@ -187,19 +187,16 @@
         update=>update,
         exit=>exit.remove()
       )
-      .attr('d',d=>{
-        const sIcon = d.source.data.gender==='f'?' ♀':d.source.data.gender==='m'?' ♂':'';
-        const sLabel = d.source.data.name + sIcon + ' ' + d.source.data.id;
-        const srcW=Math.max(80,sLabel.length*charW+20);
-        const parentX = alignedXForDepth(d.source.depth);
-        const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
-        const tLabel = d.target.data.name + tIcon + ' ' + d.target.data.id;
-        const trgW=Math.max(80,tLabel.length*charW+20);
-        const childTrunkX = alignedXForDepth(d.target.depth);
-        const hasKids=d.target.children&&d.target.children.length;
-        const endX=hasKids?childTrunkX:parentX+indent;
-        return `M${parentX},${d.target.x}H${endX}`;
-      });
+      .attr('d', d => {
+        const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
+        const label = d.data.name + icon + ' ' + d.data.id;
+        const w = Math.max(80, label.length * charW + 20);
+        const px = d.y + w / 2 + (d.depth === 0 ? indent : 0);
+        // Align ALK's trunk to gen-1 trunk, all others to their own
+        const tx = d.depth === 0 ? alignedXForDepth(1) : alignedXForDepth(d.depth);
+        const ys = d.children.map(c => c.x);
+        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
+      })
 
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
