@@ -31,7 +31,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – chart-x</h1>
+  <h1>Kariapper Family Tree – chart-A</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -61,8 +61,9 @@
   const nameIdx  = headers.findIndex(h=>h.trim() === 'Full Name');
   const genIdx   = headers.findIndex(h=>/^generation$/i.test(h));
   const genderIdx= headers.findIndex(h=>/^gender$/i.test(h.trim().toLowerCase()));
-  const dodIdx   = headers.findIndex(h=>/\bdeath.*date\b/i.test(h) || h==='M');  // you had M at 12
-  // Collect **all** spouse-dID columns:
+  const dodIdx   = headers.findIndex(h=>/\bdeath.*date\b/i.test(h) || h==='M');
+
+  // Collect all spouse-dID columns:
   const spouseCols = headers
     .map((h,i) => i)
     .filter(i => /\(dID\)$/i.test(headers[i]) && /spouse/i.test(headers[i]));
@@ -80,15 +81,12 @@
     const genderRaw = genderIdx>=0 ? (r.c[genderIdx]?.v||'').toLowerCase() : '';
     const gender = genderRaw.startsWith('f')?'f':genderRaw.startsWith('m')?'m':'';
     const dod = dodIdx>=0 ? (r.c[dodIdx]?.v||'') : '';
-    // gather spouse IDs into an array
     const spouses = spouseCols
       .map(i => r.c[i]?.v)
       .filter(v=>v);
-    // determine parent dID by trimming last ".x"
     const parent = id.includes('.') ? id.replace(/\.[^.]+$/, '') : '';
     return { id, name, gen, gender, dod, parent, spouses, children: [] };
   })
-  // **remove** the gen<=3 limit, just require valid rows
   .filter(d=>d.id && d.name && Number.isFinite(d.gen));
 
   // index lookup
@@ -105,7 +103,7 @@
     return;
   }
 
-  // character width, spacings
+  // spacing
   const charW       = 9;
   const maxLabelLen = d3.max(flat, d => (d.name+' '+d.id).length);
   const hSpacing    = Math.max(180, maxLabelLen*charW+50);
@@ -113,13 +111,13 @@
   const stub        = 20;
   const indent      = 12;
 
-  // make hierarchy & layout
+  // hierarchy & layout
   const root = d3.hierarchy(rootData, d=>d.children);
   const tree = d3.tree().nodeSize([vSpacing,hSpacing]);
 
-  // **initial collapse**: hide children of gen-2 nodes (so only up to gen-2 show)
+  // initial collapse: hide children of gen-3 and deeper
   root.descendants().forEach(d => {
-    if(d.data.gen >= 2 && d.children){
+    if(d.data.gen >= 3 && d.children){
       d._children = d.children;
       d.children  = null;
     }
@@ -141,7 +139,6 @@
   d3.select('#btnZoomOut').on('click',()=>svg.transition().call(zoomBehavior.scaleBy, 1/zoomStep));
   d3.select('#btnReset'  ).on('click',()=>svg.transition().call(zoomBehavior.transform,d3.zoomIdentity));
 
-  // center / reset helper
   window.centerView = () => svg.transition().duration(0)
                                .call(zoomBehavior.transform, d3.zoomIdentity);
 
@@ -149,9 +146,8 @@
                    .attr('class','tooltip')
                    .style('display','none');
 
-  // click-to-toggle gen-3
   function toggle(_,d){
-    if(d.data.gen >= 2){
+    if(d.data.gen >= 3){
       if(d.children){
         d._children = d.children;
         d.children  = null;
@@ -164,13 +160,12 @@
     }
   }
 
-  // build marriage links once
+  // build marriage links
   const marriageLinks = [];
   flat.forEach(p => {
     p.spouses.forEach(sID => {
-      if(byId[sID]){
-        // avoid double-link: only keep if p.id < sID
-        if(p.id < sID) marriageLinks.push({source:p.id, target:sID});
+      if(byId[sID] && p.id < sID){
+        marriageLinks.push({source:p.id, target:sID});
       }
     });
   });
@@ -178,7 +173,6 @@
   function update(){
     tree(root);
 
-    // compute alignedX same as you had
     const alignedX = d3.max(
       root.descendants().filter(d=>(d.children||d._children)?.length),
       d=>{
@@ -188,7 +182,6 @@
       }
     )||0;
 
-    // viewBox bounds
     const xs = root.descendants().map(d=>d.x);
     const ys = root.descendants().map(d=>d.y).concat(alignedX);
     const M  = 100;
@@ -197,12 +190,11 @@
     svg.attr('viewBox',[0,0,(maxY-minY)+M*2,(maxX-minX)+M*2].join(' '));
     g.attr('transform',`translate(${M-minY},${M-minX})`);
 
-    // draw trunks & branches (unchanged)
+    // trunks
     g.selectAll('path.trunk')
       .data(root.descendants().filter(d=>d.children?.length), d=>d.data.id)
       .join('path').attr('class','trunk')
       .attr('d', d=>{
-        // same as before...
         const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
         const label = d.data.name + icon + ' ' + d.data.id;
         const w = Math.max(80,label.length*charW+20);
@@ -212,6 +204,7 @@
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
+    // branches
     g.selectAll('path.branch')
       .data(root.links(), d=>d.target.data.id)
       .join('path').attr('class','branch')
@@ -234,23 +227,22 @@
         return `M${parentX},${d.target.x}H${endX}`;
       });
 
-    // draw marriage links
+    // marriage links
     g.selectAll('path.marriage-link')
       .data(marriageLinks, d=>d.source+'-'+d.target)
       .join('path').attr('class','marriage-link')
       .attr('d', d=>{
         const a = byId[d.source], b = byId[d.target];
-        // find x/y positions of those nodes:
         const ndA = root.descendants().find(n=>n.data.id===a.id);
         const ndB = root.descendants().find(n=>n.data.id===b.id);
         if(!ndA||!ndB) return '';
         const x1=ndA.x, y1=ndA.y;
         const x2=ndB.x, y2=ndB.y;
-        const midY = Math.min(x1,x2)-30;  // control point above both
+        const midY = Math.min(x1,x2)-30;
         return `M${y1},${x1} Q${(y1+y2)/2},${midY} ${y2},${x2}`;
       });
 
-    // draw nodes
+    // nodes
     const nodes = g.selectAll('g.node')
       .data(root.descendants(), d=>d.data.id)
       .join(enter=>{
@@ -267,7 +259,7 @@
       const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
       const label= d.data.name+icon+' '+d.data.id;
       const w    = Math.max(80,label.length*charW+20);
-      // compute baseX exactly as before...
+
       const parent = d.parent;
       const parentLabel = parent
         ? parent.data.name + (parent.data.gender==='f'?' ♀':parent.data.gender==='m'?' ♂':'') + ' ' + parent.data.id
@@ -308,11 +300,11 @@
 
   update();
 
-  // toggle Gen-3 on/off
+  // toggle Gen-3
   let collapsed = true;
   window.toggleGen3 = function(){
     root.descendants().forEach(d=>{
-      if(d.data.gen >= 2){
+      if(d.data.gen >= 3){
         if(collapsed && d._children){
           d.children = d._children; d._children = null;
         } else if(!collapsed && d.children){
@@ -325,13 +317,11 @@
     centerView();
   };
 })();
-</script>
 
-<script>
+// save SVG
 document.getElementById('save-svg-btn').onclick = function () {
   const svg = document.querySelector('#tree_div svg');
   if (!svg) { alert('No SVG to save'); return; }
-
   const css = `
     .trunk, .branch { fill:none; stroke:#888; stroke-width:1.5px; stroke-linecap:round; }
     .marriage-link { fill:none; stroke:#d66; stroke-width:1.5px; }
@@ -362,6 +352,5 @@ document.getElementById('save-svg-btn').onclick = function () {
   document.body.removeChild(link);
 };
 </script>
-
 </body>
 </html>
