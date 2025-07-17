@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Unlimited Generations -A</h1>
+  <h1>Kariapper Family Tree – Unlimited Generations -B</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -147,8 +147,8 @@ function toggle(_, d) {
   }
 
   update = function(){
+    const alkStub = 48; // or more if you want bigger gap!
     tree(root);
-
     const xs = root.descendants().map(d => d.x);
     const uniqueDepths = Array.from(new Set(root.descendants().map(d => d.depth)));
     const alignedXs = uniqueDepths.map(alignedXForDepth);
@@ -171,7 +171,6 @@ function toggle(_, d) {
         const label = d.data.name + icon + ' ' + d.data.id;
         const w = Math.max(80, label.length * charW + 20);
         const px = d.y + w / 2 + (d.depth === 0 ? indent : 0);
-        const alkStub = 48; // or more if you want bigger gap!
         const tx = d.depth === 0
           ? (d.y + w/2 + alkStub)
           : alignedXForDepth(d.depth);
