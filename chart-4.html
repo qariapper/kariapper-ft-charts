@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Unlimited Generations – Pedigree Trunk</title>
+  <title>Kariapper Family Tree – Unlimited Pedigree</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Unlimited Generations – Pedigree Trunk - BB</h1>
+  <h1>Kariapper Family Tree – Unlimited Pedigree -X</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -48,17 +48,15 @@ let root, centerView, update;
 let collapsed = true;
 
 function toggle(_, d) {
-  if (d.data.gen === 2) {
-    if (d.children) {
-      d._children = d.children;
-      d.children = null;
-    } else if (d._children) {
-      d.children = d._children;
-      d._children = null;
-    }
-    update();
-    centerView();
+  if (d.children) {
+    d._children = d.children;
+    d.children = null;
+  } else if (d._children) {
+    d.children = d._children;
+    d._children = null;
   }
+  update();
+  centerView();
 }
 
 (async function () {
@@ -103,13 +101,19 @@ function toggle(_, d) {
   });
   const hSpacing=Math.max(180,maxLabelLen*charW+50);
   const vSpacing=40;
-  const stub=20;
+  const stub=48; // Horizontal gap for every pedigree trunk
   const indent=12;
 
   root=d3.hierarchy(rootData,d=>d.children);
   const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
 
-  root.descendants().forEach(d=>{if(d.data.gen===2&&d.children){d._children=d.children;d.children=null;} });
+  // Initially collapse all but root and gen-2
+  root.descendants().forEach(d=>{
+    if(d.depth>=2&&d.children){
+      d._children=d.children;
+      d.children=null;
+    }
+  });
 
   const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
   const gZoom=svg.append('g');
@@ -130,117 +134,69 @@ function toggle(_, d) {
 
   const tooltip=g.append('text').attr('class','tooltip').style('display','none');
 
-  function alignedXForDepth(depth) {
-    return d3.max(
-      root.descendants().filter(d =>
-        d.depth === depth &&
-        ((d.children && d.children.length) || (d._children && d._children.length))
-      ),
-      d => {
-        const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
-        const label = d.data.name + icon + ' ' + d.data.id;
-        return d.y + Math.max(80, label.length * charW + 20) / 2 + stub;
-      }
-    ) || 0;
+  function nodeBoxRight(d) {
+    const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
+    const label = d.data.name + icon + ' ' + d.data.id;
+    const w = Math.max(80, label.length * charW + 20);
+    return d.y + w/2;
+  }
+  function nodeBoxLeft(d) {
+    const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
+    const label = d.data.name + icon + ' ' + d.data.id;
+    const w = Math.max(80, label.length * charW + 20);
+    return d.y - w/2;
   }
 
   update = function(){
-    const alkStub = 48;
     tree(root);
 
     const xs = root.descendants().map(d => d.x);
-    const uniqueDepths = Array.from(new Set(root.descendants().map(d => d.depth)));
-    const alignedXs = uniqueDepths.map(alignedXForDepth);
-    const ys = root.descendants().map(d => d.y).concat(alignedXs);
-
+    const ys = root.descendants().map(nodeBoxRight).concat(root.descendants().map(nodeBoxLeft));
     const M=100;
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-    // 1. ALK main trunk (single line)
-    g.selectAll('path.trunk-alk')
-      .data(root.descendants().filter(d=>d.depth===0 && d.children && d.children.length))
+    // --- 1. Pedigree trunks and stubs for every parent with children ---
+    let trunkData = [];
+    let stubData  = [];
+    root.descendants().forEach(parent=>{
+      if(!parent.children||!parent.children.length) return;
+      // Draw vertical trunk at (trunkX), connecting all children
+      const parentBoxRight = nodeBoxRight(parent);
+      const trunkX = parentBoxRight + stub;
+      const ys = parent.children.map(c=>c.x);
+      trunkData.push({trunkX, y0:d3.min(ys), y1:d3.max(ys)});
+      // For each child, draw horizontal stub from trunk to child box
+      parent.children.forEach(child=>{
+        stubData.push({x0:trunkX, x1:nodeBoxLeft(child), y:child.x});
+      });
+      // For ALK (root), add horizontal from ALK box to trunk
+      if(parent.depth===0){
+        stubData.push({x0:parentBoxRight, x1:trunkX, y:parent.x});
+      }
+    });
+
+    // Draw all vertical trunks
+    g.selectAll('path.trunk')
+      .data(trunkData)
       .join(
-        enter=>enter.append('path').attr('class','trunk trunk-alk'),
+        enter=>enter.append('path').attr('class','trunk'),
         update=>update,
         exit=>exit.remove()
       )
-      .attr('d',d=>{
-        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
-        const label = d.data.name + icon + ' ' + d.data.id;
-        const w = Math.max(80, label.length * charW + 20);
-        const px = d.y + w/2 + indent;
-        const trunkX = px + alkStub;
-        const ys = d.children.map(c => c.x);
-        return `M${px},${d.x}H${trunkX}M${trunkX},${d3.min(ys)}V${d3.max(ys)}`;
-      });
+      .attr('d',d=>`M${d.trunkX},${d.y0}V${d.y1}`);
 
-    // 2. Gen-2 right stub (only if expanded or has hidden children)
-    g.selectAll('path.trunk-g2')
-      .data(root.descendants().filter(
-        d => d.depth === 1 &&
-             d.parent && d.parent.depth === 0 &&
-             ((d.children && d.children.length) || (d._children && d._children.length))
-      ),d=>d.data.id)
+    // Draw all horizontal stubs
+    g.selectAll('path.stub')
+      .data(stubData)
       .join(
-        enter=>enter.append('path').attr('class','trunk trunk-g2'),
+        enter=>enter.append('path').attr('class','trunk stub'),
         update=>update,
         exit=>exit.remove()
       )
-      .attr('d', d => {
-        const parent = d.parent;
-        const icon = parent.data.gender === 'f' ? ' ♀' : parent.data.gender === 'm' ? ' ♂' : '';
-        const parentLabel = parent.data.name + icon + ' ' + parent.data.id;
-        const parentW = Math.max(80, parentLabel.length * charW + 20);
-        const px = parent.y + parentW/2 + indent;
-        const trunkX = px + alkStub;
-        const w = Math.max(80, (d.data.name + (d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '') + ' ' + d.data.id).length * charW + 20);
-        const boxX = d.y + w/2;
-        return `M${boxX},${d.x}H${trunkX}`;
-      });
+      .attr('d',d=>`M${d.x0},${d.y}H${d.x1}`);
 
-    // 3. Gen-2 vertical trunk (only if expanded)
-    g.selectAll('path.trunk-g2-vert')
-      .data(root.descendants().filter(
-        d => d.depth === 1 && d.children && d.children.length
-      ), d=>d.data.id)
-      .join(
-        enter=>enter.append('path').attr('class','trunk trunk-g2-vert'),
-        update=>update,
-        exit=>exit.remove()
-      )
-      .attr('d', d => {
-        const w = Math.max(80, (d.data.name + (d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '') + ' ' + d.data.id).length * charW + 20);
-        const px = d.y + w/2;
-        const stubX = px + alkStub;
-        const ys = d.children.map(c => c.x);
-        return `M${stubX},${d3.min(ys)}V${d3.max(ys)}`;
-      });
-
-    // 4. Gen-3 left stub (only if expanded or has hidden children)
-    g.selectAll('path.trunk-g3')
-      .data(root.descendants().filter(
-        d => d.depth === 2 &&
-             ((d.children && d.children.length) || (d._children && d._children.length))
-      ), d=>d.data.id)
-      .join(
-        enter=>enter.append('path').attr('class','trunk trunk-g3'),
-        update=>update,
-        exit=>exit.remove()
-      )
-      .attr('d', d => {
-        const parent = d.parent;
-        const w = Math.max(80, (d.data.name + (d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '') + ' ' + d.data.id).length * charW + 20);
-        const boxX = d.y + w/2;
-        const parentW = Math.max(80, (parent.data.name + (parent.data.gender === 'f' ? ' ♀' : parent.data.gender === 'm' ? ' ♂' : '') + ' ' + parent.data.id).length * charW + 20);
-        const px = parent.y + parentW/2;
-        const stubX = px + alkStub;
-        return `M${stubX},${d.x}H${boxX}`;
-      });
-
-    // 5. Trunks/branches for deeper generations (optional: expand logic as needed)
-
-    // 6. Draw nodes
+    // --- 2. Draw nodes ---
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
@@ -259,34 +215,26 @@ function toggle(_, d) {
         const icon=gender==='f'?' ♀':gender==='m'?' ♂':'';
         const label=d.data.name+icon+' '+d.data.id;
         const w=Math.max(80,label.length*charW+20);
-        const baseX = d.parent
-          ? (d.parent.depth === 0
-              ? (d.parent.y + Math.max(80, (d.parent.data.name + (d.parent.data.gender === 'f' ? ' ♀' : d.parent.data.gender === 'm' ? ' ♂' : '') + ' ' + d.parent.data.id).length * charW + 20)/2 + alkStub)
-              : alignedXForDepth(d.parent.depth))
-          : d.y - w/2;
-        const extra=d.depth===1?indent:0;
-        const genderClass=gender==='f'?'female':gender==='m'?'male':'';
-        const deathClass=d.data.dod ? ' deceased' : '';
-
-        n.attr('transform',`translate(${baseX+indent+extra},${d.x})`);
+        // Place node so box center left aligns with its "boxLeft"
+        n.attr('transform',`translate(${nodeBoxLeft(d)},${d.x})`);
         n.select('rect')
-          .attr('class',`node-rect gen${d.data.gen} ${genderClass}${deathClass}`)
+          .attr('class',`node-rect gen${d.data.gen} ${gender==='f'?'female':gender==='m'?'male':''}${d.data.dod ? ' deceased' : ''}`)
           .attr('x',0).attr('y',-12).attr('width',w).attr('height',24);
         n.select('text')
           .attr('class','node-text').attr('x',10).attr('y',0).text(label);
 
         n.on('mouseover',()=>{
           const t=d.data.spouse?`Spouse(s): ${d.data.spouse}`:'Spouse(s): none';
-          tooltip.text(t).attr('x',baseX+indent+5).attr('y',d.x-18).style('display','block');
+          tooltip.text(t).attr('x',nodeBoxLeft(d)+5).attr('y',d.x-18).style('display','block');
         }).on('mouseout',()=>tooltip.style('display','none'));
       });
-  }
+  };
 
   update();
 
   window.toggleGen3=function(){
     root.descendants().forEach(d=>{
-      if(d.data.gen===2){
+      if(d.depth===1){
         if(collapsed&&d._children){d.children=d._children;d._children=null;}
         else if(!collapsed&&d.children){d._children=d.children;d.children=null;}
       }
@@ -304,8 +252,6 @@ document.getElementById('save-svg-btn').onclick = function () {
     alert('No SVG tree found.');
     return;
   }
-
-  // Copy only the SVG-relevant styles (edit if you want to fine-tune)
   const css = `
     .trunk, .branch { fill: none; stroke: #888; stroke-width: 1.5px; stroke-linecap: round; }
     .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
@@ -319,24 +265,17 @@ document.getElementById('save-svg-btn').onclick = function () {
     .node { cursor: pointer; }
     .tooltip { paint-order: stroke; font: 13px sans-serif; fill: #333; stroke: #fff; stroke-width: .5; pointer-events: none; }
   `;
-
-  // Clone the SVG and inject styles
   const clone = svg.cloneNode(true);
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
   style.setAttribute('type', 'text/css');
   style.innerHTML = "<![CDATA[\n" + css + "\n]]>";
   clone.insertBefore(style, clone.firstChild);
-
-  // Set basic SVG attributes
   clone.setAttribute('version', '1.1');
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
-  // Serialize and download
   const serializer = new XMLSerializer();
   let source = serializer.serializeToString(clone);
   source = '<?xml version="1.0" encoding="UTF-8"?>\n' + source;
-
   const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
   const link = document.createElement('a');
   link.href = url;
@@ -346,6 +285,5 @@ document.getElementById('save-svg-btn').onclick = function () {
   document.body.removeChild(link);
 };
 </script>
-
 </body>
 </html>
