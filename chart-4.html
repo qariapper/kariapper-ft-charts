@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Corrected</title>
+  <title>Kariapper Family Tree – Unlimited Generations – Pedigree Trunk</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -11,7 +11,6 @@
     #controls { text-align: center; margin: 10px; }
     #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
     svg { display: block; width: 100%; height: auto; }
-
     .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
     .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
     .gen1{fill:#eceff4;stroke:#4c566a}
@@ -20,7 +19,6 @@
     .female{fill:#fbd3e0!important}
     .male  {fill:#d0e4f7!important}
     .deceased { stroke: green !important; }
-
     .node-text{pointer-events:none;text-anchor:start;dominant-baseline:central}
     .node{cursor:pointer}
     .tooltip{paint-order:stroke;font:13px sans-serif;fill:#333;stroke:#fff;
@@ -30,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Unlimited Generations -B</h1>
+  <h1>Kariapper Family Tree – Unlimited Generations – Pedigree Trunk</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -147,8 +145,9 @@ function toggle(_, d) {
   }
 
   update = function(){
-    const alkStub = 48; // or more if you want bigger gap!
+    const alkStub = 48; // adjust gap as desired!
     tree(root);
+
     const xs = root.descendants().map(d => d.x);
     const uniqueDepths = Array.from(new Set(root.descendants().map(d => d.depth)));
     const alignedXs = uniqueDepths.map(alignedXForDepth);
@@ -158,27 +157,57 @@ function toggle(_, d) {
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-    // Draw trunks (vertical lines with stubs)
-    g.selectAll('path.trunk')
-      .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
+    // Draw ALK main trunk (single line)
+    g.selectAll('path.trunk-alk')
+      .data(root.descendants().filter(d=>d.depth===0 && d.children && d.children.length))
       .join(
-        enter=>enter.append('path').attr('class','trunk'),
+        enter=>enter.append('path').attr('class','trunk trunk-alk'),
+        update=>update,
+        exit=>exit.remove()
+      )
+      .attr('d',d=>{
+        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+        const label = d.data.name + icon + ' ' + d.data.id;
+        const w = Math.max(80, label.length * charW + 20);
+        const px = d.y + w/2 + indent;
+        const trunkX = px + alkStub;
+        const ys = d.children.map(c => c.x);
+        return `M${px},${d.x}H${trunkX}M${trunkX},${d3.min(ys)}V${d3.max(ys)}`;
+      });
+
+    // Draw left stub for each gen-2 (horizontal from trunk to box)
+    g.selectAll('path.trunk-g2')
+      .data(root.descendants().filter(d=>d.depth===1 && d.parent && d.parent.depth===0),d=>d.data.id)
+      .join(
+        enter=>enter.append('path').attr('class','trunk trunk-g2'),
         update=>update,
         exit=>exit.remove()
       )
       .attr('d', d => {
-        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
-        const label = d.data.name + icon + ' ' + d.data.id;
-        const w = Math.max(80, label.length * charW + 20);
-        const px = d.y + w / 2 + (d.depth === 0 ? indent : 0);
-        const tx = d.depth === 0
-          ? (d.y + w/2 + alkStub)
-          : alignedXForDepth(d.depth);
+        const parent = d.parent;
+        const icon = parent.data.gender === 'f' ? ' ♀' : parent.data.gender === 'm' ? ' ♂' : '';
+        const parentLabel = parent.data.name + icon + ' ' + parent.data.id;
+        const parentW = Math.max(80, parentLabel.length * charW + 20);
+        const px = parent.y + parentW/2 + indent;
+        const trunkX = px + alkStub;
+        const w = Math.max(80, (d.data.name + (d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '') + ' ' + d.data.id).length * charW + 20);
+        const boxX = d.y + w/2;
+        return `M${trunkX},${d.x}H${boxX}`;
+      });
 
-        const ys = d.children.map(c => c.x);
-        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-      })
-
+    // Draw regular trunks for deeper generations
+    g.selectAll('path.trunk-gen')
+      .data(root.descendants().filter(d=>d.depth>1 && d.children?.length),d=>d.data.id)
+      .join(
+        enter=>enter.append('path').attr('class','trunk trunk-gen'),
+        update=>update,
+        exit=>exit.remove()
+      )
+      .attr('d',d=>{
+        const tx = alignedXForDepth(d.depth);
+        const ys=d.children.map(c=>c.x);
+        return `M${tx},${d3.min(ys)}V${d3.max(ys)}`;
+      });
 
     // Draw branches (horizontal connectors from trunk to node)
     g.selectAll('path.branch')
@@ -189,13 +218,16 @@ function toggle(_, d) {
         exit=>exit.remove()
       )
       .attr('d', d => {
-        // Parent trunk x
-        const parentX = alignedXForDepth(d.source.depth);
-        // Child trunk x (if they have children of their own)
-        const childTrunkX = alignedXForDepth(d.target.depth);
-        const hasKids = d.target.children && d.target.children.length;
-        const endX = hasKids ? childTrunkX : parentX + indent;
-        return `M${parentX},${d.target.x}H${endX}`;
+        // For all except gen-2, draw horizontal from trunk to node
+        if (d.source.depth > 0) {
+          const parentX = alignedXForDepth(d.source.depth);
+          const childTrunkX = alignedXForDepth(d.target.depth);
+          const hasKids = d.target.children && d.target.children.length;
+          const endX = hasKids ? childTrunkX : parentX + indent;
+          return `M${parentX},${d.target.x}H${endX}`;
+        }
+        // No branch needed for ALK → gen-2 (handled by trunk & stub)
+        return null;
       });
 
     // Draw nodes
