@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -zz</h1>
+  <h1>Kariapper Family Tree – Corrected & Unlimited Generations</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -74,8 +74,7 @@
     const gender=genderRaw.startsWith('f')?'f':genderRaw.startsWith('m')?'m':'';
     const dod = r.c[dodIdx]?.v || '';
     return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
-  // }).filter(d=>d.id&&d.name&&Number.isFinite(d.gen)&&d.gen<=3);
-  }).filter(d=>d.id && d.name && Number.isFinite(d.gen));   // keep everyone
+  }).filter(d=>d.id && d.name && Number.isFinite(d.gen));
 
   const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
   flat.forEach(d=>{if(d.parent&&byId[d.parent])byId[d.parent].children.push(d);});
@@ -127,17 +126,6 @@
 
   const tooltip=g.append('text').attr('class','tooltip').style('display','none');
 
-  function toggle(_,d){
-    if(d.data.gen===2){
-      d.children?(d._children=d.children,d.children=null):(d.children=d._children,d._children=null);
-      update();
-      centerView();
-    }
-  }
-
-  function update(){
-    tree(root);
-
   function alignedXForDepth(depth) {
     return d3.max(
       root.descendants().filter(d =>
@@ -152,9 +140,10 @@
     ) || 0;
   }
 
+  function update(){
+    tree(root);
 
     const xs = root.descendants().map(d => d.x);
-    // Add all aligned trunk x positions for every depth that appears:
     const uniqueDepths = Array.from(new Set(root.descendants().map(d => d.depth)));
     const alignedXs = uniqueDepths.map(alignedXForDepth);
     const ys = root.descendants().map(d => d.y).concat(alignedXs);
@@ -163,6 +152,7 @@
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
+    // Draw trunks (vertical lines with stubs)
     g.selectAll('path.trunk')
       .data(root.descendants().filter(d=>d.children?.length),d=>d.data.id)
       .join(
@@ -175,11 +165,13 @@
         const label = d.data.name + icon + ' ' + d.data.id;
         const w=Math.max(80,label.length*charW+20);
         const px=d.y+w/2+(d.depth===0?indent:0);
+        // Align ALK's trunk to gen-1 trunk, all others to their own
         const tx = d.depth === 0 ? alignedXForDepth(1) : alignedXForDepth(d.depth);
         const ys=d.children.map(c=>c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
 
+    // Draw branches (horizontal connectors from trunk to node)
     g.selectAll('path.branch')
       .data(root.links(),d=>d.target.data.id)
       .join(
@@ -188,16 +180,16 @@
         exit=>exit.remove()
       )
       .attr('d', d => {
-        const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
-        const label = d.data.name + icon + ' ' + d.data.id;
-        const w = Math.max(80, label.length * charW + 20);
-        const px = d.y + w / 2 + (d.depth === 0 ? indent : 0);
-        // Align ALK's trunk to gen-1 trunk, all others to their own
-        const tx = d.depth === 0 ? alignedXForDepth(1) : alignedXForDepth(d.depth);
-        const ys = d.children.map(c => c.x);
-        return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
-      })
+        // Parent trunk x
+        const parentX = alignedXForDepth(d.source.depth);
+        // Child trunk x (if they have children of their own)
+        const childTrunkX = alignedXForDepth(d.target.depth);
+        const hasKids = d.target.children && d.target.children.length;
+        const endX = hasKids ? childTrunkX : parentX + indent;
+        return `M${parentX},${d.target.x}H${endX}`;
+      });
 
+    // Draw nodes
     g.selectAll('g.node')
       .data(root.descendants(),d=>d.data.id)
       .join(
