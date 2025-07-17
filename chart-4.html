@@ -30,7 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – up to 3 generations -A</h1>
+  <h1>Kariapper Family Tree – up to 3 generations -x</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -138,13 +138,20 @@
   function update(){
     tree(root);
 
-    const alignedX=d3.max(
-      root.descendants().filter(d=>(d.children&&d.children.length)||(d._children&&d._children.length)),
-      d=>{
-        const icon = d.data.gender==='f'?' ♀':d.data.gender==='m'?' ♂':'';
+  function alignedXForDepth(depth) {
+    return d3.max(
+      root.descendants().filter(d =>
+        d.depth === depth &&
+        ((d.children && d.children.length) || (d._children && d._children.length))
+      ),
+      d => {
+        const icon = d.data.gender === 'f' ? ' ♀' : d.data.gender === 'm' ? ' ♂' : '';
         const label = d.data.name + icon + ' ' + d.data.id;
-        return d.y + Math.max(80,label.length*charW+20)/2 + stub;
-      });
+        return d.y + Math.max(80, label.length * charW + 20) / 2 + stub;
+      }
+    ) || 0;
+  }
+
 
     const xs=root.descendants().map(d=>d.x);
     const ys=root.descendants().map(d=>d.y).concat(alignedX);
@@ -164,7 +171,7 @@
         const label = d.data.name + icon + ' ' + d.data.id;
         const w=Math.max(80,label.length*charW+20);
         const px=d.y+w/2+(d.depth===0?indent:0);
-        const tx=d.depth===1?alignedX:px+stub;
+        const tx = alignedXForDepth(d.depth);
         const ys=d.children.map(c=>c.x);
         return `M${px},${d.x}H${tx}M${tx},${d3.min(ys)}V${d3.max(ys)}`;
       });
@@ -187,7 +194,7 @@
         const tIcon = d.target.data.gender==='f'?' ♀':d.target.data.gender==='m'?' ♂':'';
         const tLabel = d.target.data.name + tIcon + ' ' + d.target.data.id;
         const trgW=Math.max(80,tLabel.length*charW+20);
-        const childTrunkX=d.target.depth===2?alignedX:d.target.y+trgW/2+stub;
+        const childTrunkX = alignedXForDepth(d.target.depth);
         const hasKids=d.target.children&&d.target.children.length;
         const endX=hasKids?childTrunkX:parentX+indent;
         return `M${parentX},${d.target.x}H${endX}`;
