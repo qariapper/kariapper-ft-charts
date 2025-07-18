@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth -4</title>
+  <title>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -12,7 +12,7 @@
     #tree_div { width: 100%; height: calc(100vh - 100px); overflow: auto; }
     svg { display: block; width: 100%; height: auto; }
     .trunk,.branch{fill:none;stroke:#888;stroke-width:1.5px;stroke-linecap:round}
-    .node-rect{rx:4;ry:4;filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15))}
+    .node-rect { rx:4; ry:4; filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15)); stroke: #888; stroke-width: 2.2px; }
     .gen1{fill:#eceff4;stroke:#4c566a}
     .gen2{fill:#e5e9f0;stroke:#3b4252}
     .gen3{fill:#d8dee9;stroke:#2e3440}
@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth</h1>
+  <h1>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth - X</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -261,7 +261,7 @@ document.getElementById('save-svg-btn').onclick = function () {
   }
   const css = `
     .trunk, .branch { fill: none; stroke: #888; stroke-width: 1.5px; stroke-linecap: round; }
-    .node-rect { rx: 4; ry: 4; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.15)); }
+    .node-rect { rx:4; ry:4; filter:drop-shadow(2px 2px 2px rgba(0,0,0,.15)); stroke: #888; stroke-width: 2px; }
     .gen1 { fill: #eceff4; stroke: #4c566a; }
     .gen2 { fill: #e5e9f0; stroke: #3b4252; }
     .gen3 { fill: #d8dee9; stroke: #2e3440; }
