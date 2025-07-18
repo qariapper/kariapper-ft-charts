@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth</title>
+  <title>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs (GEN-5 FIX)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth</h1>
+  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs -y</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -112,15 +112,13 @@ function toggle(_, d) {
   root=d3.hierarchy(rootData,d=>d.children);
   const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
 
-  // ---- ADJUST INITIAL OPEN DEPTH HERE ----
-  const maxInitialDepth = 3; // Set to 3 for up to gen-3, change this number as needed!
+  // Collapse everything after gen-3 on first load (change to 2 if you wish)
   root.descendants().forEach(d=>{
-    if(d.depth >= maxInitialDepth && d.children){
-      d._children = d.children;
-      d.children = null;
+    if(d.depth>=3&&d.children){
+      d._children=d.children;
+      d.children=null;
     }
   });
-  // ---- END OF INITIAL DEPTH CONTROL ----
 
   const svg=d3.select('#tree_div').html('').append('svg').attr('preserveAspectRatio','xMinYMin meet');
   const gZoom=svg.append('g');
@@ -152,25 +150,30 @@ function toggle(_, d) {
     svg.attr('viewBox',[0,0,Math.max(...ys)-Math.min(...ys)+M*2,Math.max(...xs)-Math.min(...xs)+M*2].join(' '));
     g.attr('transform',`translate(${M-Math.min(...ys)},${M-Math.min(...xs)})`);
 
-    // Robust Trunk/Stub logic (handles all generations, including horizontal sibling rows)
+    // Trunks and stubs (GEN-5 FIX)
     let trunkData = [];
     let stubData  = [];
-    root.descendants().forEach(parent=>{
-      if(!(parent.children && parent.children.length)) return;
-      const trunkX = d3.min(parent.children, c => c.y);
-      const ys = parent.children.map(c=>c.x);
-      let y0 = d3.min(ys), y1 = d3.max(ys);
-      // If all children share same x (horizontal row), draw horizontal trunk
-      if (y0 === y1) {
-        const xs = parent.children.map(c => c.y);
-        const x0 = Math.min(...xs), x1 = Math.max(...xs);
-        trunkData.push({ trunkX: x0, x1: x1, y: y0, horizontal: true });
-      } else {
-        trunkData.push({ trunkX: trunkX, y0: y0, y1: y1, horizontal: false });
-      }
-      const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
-      stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
-    });
+
+  root.descendants().forEach(parent=>{
+    if(!(parent.children && parent.children.length)) return;
+    const trunkX = d3.min(parent.children, c => c.y);
+    const ys = parent.children.map(c=>c.x);
+    let y0 = d3.min(ys), y1 = d3.max(ys);
+    // If all children share the same x (horizontal siblings), draw horizontal trunk
+    if (y0 === y1) {
+      // Horizontal trunk at y0, from min(trunkX...) to max(trunkX...)
+      const xs = parent.children.map(c => c.y);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs);
+      trunkData.push({ trunkX: x0, x1: x1, y: y0, horizontal: true });
+    } else {
+      // Vertical trunk as before
+      trunkData.push({ trunkX: trunkX, y0: y0, y1: y1, horizontal: false });
+    }
+    const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
+    stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
+  });
+
+
 
     // Add left stub for every non-root node
     root.descendants().forEach(node=>{
@@ -181,7 +184,7 @@ function toggle(_, d) {
       }
     });
 
-    // Draw all vertical/horizontal trunks
+    // Draw all vertical trunks
     g.selectAll('path.trunk')
       .data(trunkData)
       .join(
