@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth - A</h1>
+  <h1>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth - B</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -70,6 +70,7 @@ function toggle(_, d) {
   const nameIdx=headers.findIndex(h=>h.trim()==='Full Name');
   const genIdx=headers.findIndex(h=>/^generation$/i.test(h));
   const spouseIdx=headers.findIndex(h=>h.trim().toLowerCase().startsWith('spouse'));
+  const commentsIdx = headers.findIndex(h=>h.trim().toLowerCase() === 'comments');
   const genderIdx=headers.findIndex(h=>h.trim().toLowerCase()==='gender');
   const dodIdx=12; // Column M is index 12 (0-based)
 
@@ -83,10 +84,11 @@ function toggle(_, d) {
     const name=r.c[nameIdx]?.v||'';
     const gen=+r.c[genIdx]?.v;
     const spouse=r.c[spouseIdx]?.v||'';
+    const comments = commentsIdx>=0 ? r.c[commentsIdx]?.v||'' : '';
     const genderRaw=genderIdx>=0?r.c[genderIdx]?.v?.toLowerCase():'';
     const gender=genderRaw.startsWith('f')?'f':genderRaw.startsWith('m')?'m':'';
     const dod = r.c[dodIdx]?.v || '';
-    return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,children:[]};
+    return{id,name,gen,gender,dod,parent:id.includes('.')?id.replace(/\.[^.]+$/,''):'',spouse,comments,children:[]};
   }).filter(d=>d.id && d.name && Number.isFinite(d.gen));
 
   const byId=Object.fromEntries(flat.map(d=>[d.id,d]));
@@ -235,8 +237,15 @@ function toggle(_, d) {
           .attr('class','node-text').attr('x',10).attr('y',0).text(label);
 
         n.on('mouseover',()=>{
-          const t=d.data.spouse?`Spouse(s): ${d.data.spouse}`:'Spouse(s): none';
-          tooltip.text(t).attr('x',d.y+leftStub+5).attr('y',d.x-18).style('display','block');
+          let t = '';
+          if(d.data.spouse && d.data.spouse.trim()) {
+            t = `Spouse(s): ${d.data.spouse}`;
+          } else if(d.data.comments && d.data.comments.trim()) {
+            t = d.data.comments;
+          }
+          if (t) {
+            tooltip.text(t).attr('x',d.y+leftStub+5).attr('y',d.x-18).style('display','block');
+          }
         }).on('mouseout',()=>tooltip.style('display','none'));
       });
   };
