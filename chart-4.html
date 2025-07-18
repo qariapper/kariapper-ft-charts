@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth</title>
+  <title>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth -4</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="d3.min.js"></script>
   <style>
@@ -113,7 +113,7 @@ function toggle(_, d) {
   const tree=d3.tree().nodeSize([vSpacing,hSpacing]);
 
   // ---- ADJUST INITIAL OPEN DEPTH HERE ----
-  const maxInitialDepth = 3; // Set to 3 for up to gen-3, change this number as needed!
+  const maxInitialDepth = 4; // Set to 3 for up to gen-3, change this number as needed!
   root.descendants().forEach(d=>{
     if(d.depth >= maxInitialDepth && d.children){
       d._children = d.children;
