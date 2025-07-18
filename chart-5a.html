@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth - X</h1>
+  <h1>Kariapper Family Tree – Left-Aligned Pedigree with Adjustable Depth - A</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -183,7 +183,11 @@ function toggle(_, d) {
 
     // Draw all vertical/horizontal trunks
     g.selectAll('path.trunk')
-      .data(trunkData)
+      .data(trunkData, d =>
+        d.horizontal
+          ? 'h-' + d.trunkX + '-' + d.x1 + '-' + d.y
+          : 'v-' + d.trunkX + '-' + d.y0 + '-' + d.y1
+      )
       .join(
         enter=>enter.append('path').attr('class','trunk'),
         update=>update,
