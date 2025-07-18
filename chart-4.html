@@ -28,7 +28,7 @@
   </style>
 </head>
 <body>
-  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs -x </h1>
+  <h1>Kariapper Family Tree – Recursive Left-Aligned Pedigree with Stubs -y</h1>
   <div id="controls">
     <button onclick="toggleGen3()">Toggle Gen-3</button>
     <button id="btnZoomIn">＋</button>
@@ -154,23 +154,24 @@ function toggle(_, d) {
     let trunkData = [];
     let stubData  = [];
 
-    root.descendants().forEach(parent=>{
-      if(!(parent.children && parent.children.length)) return;
-      const trunkX = d3.min(parent.children, c => c.y);
-      const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
-      const ys = parent.children.map(c=>c.x);
-      let y0 = d3.min(ys), y1 = d3.max(ys);
-      // --- Key fix: if all children stacked, forcibly make trunk visible (10px)
-      if (y0 === y1) {
-        if (parent.children.length > 1) {
-          y0 -= 5; y1 += 5; // Make a visible trunk for siblings stacked horizontally!
-        } else {
-          y0 -= 5; y1 += 5; // Also for a single child, as before
-        }
-      }
-      trunkData.push({trunkX:trunkX, y0:y0, y1:y1});
-      stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
-    });
+  root.descendants().forEach(parent=>{
+    if(!(parent.children && parent.children.length)) return;
+    const trunkX = d3.min(parent.children, c => c.y);
+    const ys = parent.children.map(c=>c.x);
+    let y0 = d3.min(ys), y1 = d3.max(ys);
+    // If all children share the same x (horizontal siblings), draw horizontal trunk
+    if (y0 === y1) {
+      // Horizontal trunk at y0, from min(trunkX...) to max(trunkX...)
+      const xs = parent.children.map(c => c.y);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs);
+      trunkData.push({ trunkX: x0, x1: x1, y: y0, horizontal: true });
+    } else {
+      // Vertical trunk as before
+      trunkData.push({ trunkX: trunkX, y0: y0, y1: y1, horizontal: false });
+    }
+    const parentRight = parent.y + nodeBoxWidth(parent) + (parent.depth>0?leftStub:0);
+    stubData.push({x0:parentRight, x1:trunkX, y:parent.x});
+  });
 
 
 
@@ -191,7 +192,10 @@ function toggle(_, d) {
         update=>update,
         exit=>exit.remove()
       )
-      .attr('d',d=>`M${d.trunkX},${d.y0}V${d.y1}`);
+      .attr('d',d=> d.horizontal
+        ? `M${d.trunkX},${d.y}H${d.x1}` // horizontal trunk
+        : `M${d.trunkX},${d.y0}V${d.y1}` // vertical trunk
+      );
 
     // Draw all horizontal stubs
     g.selectAll('path.stub')
